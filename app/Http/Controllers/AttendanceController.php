@@ -9,19 +9,17 @@ use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
-    /**
-     * Tampilan Dashboard Web: Menampilkan data log absensi.
-     */
     public function index(Request $request)
     {
         $search = $request->query('search');
 
-        // Mengambil log absensi beserta relasi data usernya harian
         $attendances = Attendance::with(['user'])
             ->when($search, function ($query, $search) {
                 return $query->whereHas('user', function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('uid', 'like', "%{$search}%");
+                    $q->where(function ($innerQuery) use ($search) {
+                        $innerQuery->where('name', 'like', "%{$search}%")
+                                   ->orWhere('uid', 'like', "%{$search}%");
+                    });
                 });
             })
             ->latest('date')
@@ -32,17 +30,12 @@ class AttendanceController extends Controller
         return view('pages.attendance.index', compact('attendances'));
     }
 
-    /**
-     * Jalur API Alat RFID: Mencatat kehadiran saat kartu di-tap.
-     */
     public function scanRfid(Request $request)
     {
-        // 1. Validasi string UID dari alat RFID
         $request->validate([
             'uid' => 'required|string',
         ]);
 
-        // 2. Cari user berdasarkan kartu UID yang dikirim
         $user = User::where('uid', $request->uid)->first();
 
         if (!$user) {
@@ -54,7 +47,6 @@ class AttendanceController extends Controller
 
         $today = Carbon::today()->toDateString();
 
-        // 3. Sistem pengaman: Mencegah double tap di hari yang sama
         $alreadyTapped = Attendance::where('user_id', $user->id)
             ->where('date', $today)
             ->exists();
@@ -66,15 +58,13 @@ class AttendanceController extends Controller
             ], 400);
         }
 
-        // 4. Buat data kehadiran baru (Murni masuk, tanpa data pulangnya)
         $attendance = Attendance::create([
             'user_id' => $user->id,
             'date'    => $today,
-            'time_in' => Carbon::now()->toTimeString(), // Mengambil format H:i:s jam lokal saat ini
+            'time_in' => Carbon::now()->toTimeString(), 
             'status'  => 'Hadir',
         ]);
 
-        // 5. Kirim respon balik ke mesin mikrokontroler RFID
         return response()->json([
             'success' => true,
             'message' => 'Absen masuk berhasil dicatat!',
@@ -86,4 +76,45 @@ class AttendanceController extends Controller
             ],
         ]);
     }
+
+public function autocomplete(Request $request)
+{
+    $keyword = $request->query('keyword');
+    $date = $request->query('date');
+
+    if (empty($keyword) && empty($date)) {
+        return response()->json([]);
+    }
+
+    $attendances = Attendance::with(['user'])
+        ->when($keyword, function ($query, $keyword) {
+            return $query->whereHas('user', function ($q) use ($keyword) {
+                $q->where(function ($innerQuery) use ($keyword) {
+                    $innerQuery->where('name', 'like', "%{$keyword}%")
+                               ->orWhere('uid', 'like', "%{$keyword}%");
+                });
+            });
+        })
+        ->when($date, function ($query, $date) {
+            return $query->where('date', $date);
+        })
+        ->latest('date')
+        ->take(10) 
+        ->get();
+
+    $results = $attendances->map(function ($attendance) {
+        return [
+            'id'              => $attendance->id,
+            'uid'             => $attendance->user->uid ?? '-',
+            'name'            => $attendance->user->name ?? 'User Terhapus',
+            'email'           => $attendance->user->email ?? '-',
+            'date'            => $attendance->date,
+            'date_formatted'  => \Carbon\Carbon::parse($attendance->date)->translatedFormat('d F Y'),
+            'time_in'         => $attendance->time_in,
+            'status'          => $attendance->status ?? 'Hadir',
+        ];
+    });
+
+    return response()->json($results);
+}
 }

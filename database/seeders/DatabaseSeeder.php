@@ -12,8 +12,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            UserSeeder::class,       // Mengisi data akun Admin/User terlebih dahulu
-            AttendanceSeeder::class, // Baru mengisi data absensinya
+            UserSeeder::class,
+            AttendanceSeeder::class, 
         ]);
     }
 }
