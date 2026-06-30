@@ -1,5 +1,5 @@
 // ============================================================
-// filterUsers.js – Live search + cascading class filter
+// filterUsers.js – Live search + custom radio popover filter
 // ============================================================
 
 function updateRfidStatus(userId, newStatus, selectEl) {
@@ -9,15 +9,11 @@ function updateRfidStatus(userId, newStatus, selectEl) {
         selectEl.className = "px-2.5 py-1 text-xs font-semibold rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-red-50 text-red-800 cursor-pointer";
     }
 
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')
-        ? document.querySelector('meta[name="csrf-token"]').content
-        : '';
-
     fetch(`/users/${userId}/status`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken
+            'X-CSRF-TOKEN': window.csrfToken || ''
         },
         body: JSON.stringify({ rfid_status: newStatus })
     })
@@ -34,141 +30,278 @@ function updateRfidStatus(userId, newStatus, selectEl) {
     });
 }
 
-// ── Cascading filter helpers ──────────────────────────────────
+let debounceTimer;
+const classesList = [];
 
-function onTingkatChange() {
-    const tingkat = document.getElementById('filter-tingkat').value;
-    const jurusanSel = document.getElementById('filter-jurusan');
-    const nomorSel   = document.getElementById('filter-nomor');
+// Generate daftar kelas untuk autocomplete
+function initClassesList() {
+    const majors = [
+        { name: 'rpl', count: 10 },
+        { name: 'dkv', count: 3 }
+    ];
+    const grades = ['X', 'XI', 'XII'];
 
-    // Reset jurusan & nomor
-    jurusanSel.value = '';
-    nomorSel.innerHTML = '<option value="">Semua Nomor</option>';
-    nomorSel.disabled = true;
-
-    if (tingkat) {
-        jurusanSel.disabled = false;
-    } else {
-        jurusanSel.disabled = true;
-    }
-
-    filterUsers();
+    grades.forEach(grade => {
+        majors.forEach(major => {
+            for (let i = 1; i <= major.count; i++) {
+                classesList.push(`${grade}-${major.name} ${i}`);
+            }
+        });
+    });
 }
 
-function onJurusanChange() {
-    const jurusan  = document.getElementById('filter-jurusan').value;
-    const nomorSel = document.getElementById('filter-nomor');
+function initKelasAutocomplete() {
+    const kelasInput = document.getElementById('filter-kelas-search');
+    const suggestionsBox = document.getElementById('filter-kelas-suggestions');
 
-    nomorSel.innerHTML = '<option value="">Semua Nomor</option>';
+    if (!kelasInput || !suggestionsBox) return;
 
-    if (jurusan) {
-        nomorSel.disabled = false;
-        const maxNomor = jurusan === 'rpl' ? 10 : 3;
-        for (let i = 1; i <= maxNomor; i++) {
-            const opt = document.createElement('option');
-            opt.value = String(i);
-            opt.textContent = i;
-            nomorSel.appendChild(opt);
+    kelasInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase().replace(/[\s-]/g, '');
+        suggestionsBox.innerHTML = '';
+        
+        if (!query) {
+            suggestionsBox.classList.add('hidden');
+            return;
         }
-    } else {
-        nomorSel.disabled = true;
-    }
 
-    filterUsers();
+        const matches = classesList.filter(item => {
+            const normalizedItem = item.toLowerCase().replace(/[\s-]/g, '');
+            return normalizedItem.includes(query);
+        });
+
+        if (matches.length === 0) {
+            suggestionsBox.classList.add('hidden');
+            return;
+        }
+
+        matches.forEach(match => {
+            const row = document.createElement('div');
+            row.className = "px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors duration-150";
+            row.textContent = match;
+            row.addEventListener('click', function() {
+                kelasInput.value = match;
+                suggestionsBox.classList.add('hidden');
+            });
+            suggestionsBox.appendChild(row);
+        });
+
+        suggestionsBox.classList.remove('hidden');
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!kelasInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+            suggestionsBox.classList.add('hidden');
+        }
+    });
+
+    kelasInput.addEventListener('focus', function() {
+        if (this.value) {
+            const event = new Event('input');
+            kelasInput.dispatchEvent(event);
+        }
+    });
 }
 
-// ── Main filter function ─────────────────────────────────────
+function liveSearchUsers(keyword) {
+    const dropdown = document.getElementById('searchDropdown');
+    
+    if (keyword.trim().length < 2) {
+        if (dropdown) {
+            dropdown.innerHTML = '';
+            dropdown.classList.add('hidden');
+        }
+        fetchFilteredData();
+        return;
+    }
 
-function filterUsers() {
-    const keyword  = (document.getElementById('user-search')?.value || '').toLowerCase().trim();
-    const role     = document.getElementById('user-role')?.value || 'all';
-    const tingkat  = document.getElementById('filter-tingkat')?.value || '';
-    const jurusan  = document.getElementById('filter-jurusan')?.value || '';
-    const nomor    = document.getElementById('filter-nomor')?.value || '';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        const angkatan = document.querySelector('input[name="filter-angkatan"]:checked')?.value || 'all';
+        const jurusan  = document.querySelector('input[name="filter-jurusan"]:checked')?.value || 'all';
+        const kelas    = document.getElementById('filter-kelas-search')?.value || '';
+        const role     = document.querySelector('input[name="filter-role"]:checked')?.value || 'all';
 
-    const rows      = document.querySelectorAll('.user-row');
-    const resetBtn  = document.getElementById('reset-filter-btn');
-    let visibleCount = 0;
+        const url = `${window.autocompleteUrl}?keyword=${encodeURIComponent(keyword)}&angkatan=${angkatan}&jurusan=${jurusan}&kelas=${encodeURIComponent(kelas)}&role=${role}`;
 
-    const hasFilter = keyword || role !== 'all' || tingkat || jurusan || nomor;
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (dropdown) {
+                    dropdown.innerHTML = '';
+                    if (data.length > 0) {
+                        dropdown.classList.remove('hidden');
+                        data.slice(0, 5).forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = "px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex justify-between";
+                            div.innerHTML = `
+                                <span class="font-medium text-gray-900">${item.name}</span>
+                                <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">UID: ${item.uid}</span>
+                            `;
+                            div.onclick = function() {
+                                const searchInput = document.getElementById('searchInput');
+                                if (searchInput) searchInput.value = item.name;
+                                dropdown.classList.add('hidden');
+                                updateTableContent([item]);
+                            };
+                            dropdown.appendChild(div);
+                        });
+                    } else {
+                        dropdown.classList.add('hidden');
+                    }
+                }
+                updateTableContent(data);
+            });
+    }, 300);
+}
+
+function fetchFilteredData() {
+    const keyword  = document.getElementById('searchInput')?.value || '';
+    const angkatan = document.querySelector('input[name="filter-angkatan"]:checked')?.value || 'all';
+    const jurusan  = document.querySelector('input[name="filter-jurusan"]:checked')?.value || 'all';
+    const kelas    = document.getElementById('filter-kelas-search')?.value || '';
+    const role     = document.querySelector('input[name="filter-role"]:checked')?.value || 'all';
+
+    const url = `${window.autocompleteUrl}?keyword=${encodeURIComponent(keyword)}&angkatan=${angkatan}&jurusan=${jurusan}&kelas=${encodeURIComponent(kelas)}&role=${role}`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            updateTableContent(data);
+        });
+}
+
+function updateTableContent(items) {
+    const tableBody = document.querySelector('table tbody');
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = '';
+
+    const hasFilter = checkHasActiveFilters();
+    const resetBtn = document.getElementById('reset-filter-btn');
     if (resetBtn) {
         resetBtn.classList.toggle('hidden', !hasFilter);
     }
 
-    rows.forEach(row => {
-        const name  = row.getAttribute('data-name')  || '';
-        const email = row.getAttribute('data-email') || '';
-        const uid   = row.getAttribute('data-uid')   || '';
-        const rowRole  = row.getAttribute('data-role')  || '';
-        const rowKelas = row.getAttribute('data-kelas') || ''; // contoh: "x-rpl 1"
+    const paginator = document.getElementById('pagination-container');
+    if (paginator) {
+        paginator.style.display = hasFilter ? 'none' : 'block';
+    }
 
-        // ── Match keyword
-        const matchKeyword = !keyword || name.includes(keyword) || email.includes(keyword) || uid.includes(keyword);
+    if (items.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">
+                    Tidak ada data user ditemukan.
+                </td>
+            </tr>`;
+        return;
+    }
 
-        // ── Match role
-        const matchRole = role === 'all' || rowRole === role;
+    items.forEach((u, index) => {
+        const row = document.createElement('tr');
+        row.className = "hover:bg-gray-50 transition-colors duration-200 user-row bg-blue-50/20";
 
-        // ── Parse kelas: format "tingkat-jurusan nomor" contoh "x-rpl 1"
-        // rowKelas sudah di-strtolower di blade
-        let matchKelas = true;
-        if (tingkat || jurusan || nomor) {
-            // Pisahkan tingkat dan sisa: "x-rpl 1" → tingkatPart="x", rest="rpl 1"
-            const dashIdx = rowKelas.indexOf('-');
-            const tingkatPart  = dashIdx >= 0 ? rowKelas.substring(0, dashIdx) : rowKelas;       // "x"
-            const afterDash    = dashIdx >= 0 ? rowKelas.substring(dashIdx + 1) : '';            // "rpl 1"
-            const spaceIdx     = afterDash.indexOf(' ');
-            const jurusanPart  = spaceIdx >= 0 ? afterDash.substring(0, spaceIdx) : afterDash;  // "rpl"
-            const nomorPart    = spaceIdx >= 0 ? afterDash.substring(spaceIdx + 1) : '';         // "1"
+        const badgeClass = u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+        const roleLabel = u.role.charAt(0).toUpperCase() + u.role.slice(1);
+        
+        const isSelf = String(window.authUserId) === String(u.id);
+        const actionHtml = `
+            <a href="/users/${u.id}/edit" class="text-blue-600 hover:text-blue-900 transition-colors duration-200">
+                Edit
+            </a>
+            ${!isSelf ? `
+                <form action="/users/${u.id}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus user ini? Semua data absen terkait juga akan hilang.')" style="display:inline;">
+                    <input type="hidden" name="_token" value="${window.csrfToken}">
+                    <input type="hidden" name="_method" value="DELETE">
+                    <button type="submit" class="text-red-600 hover:text-red-900 transition-colors duration-200">
+                        Hapus
+                    </button>
+                </form>
+            ` : ''}
+        `;
 
-            if (tingkat && tingkatPart !== tingkat.toLowerCase()) matchKelas = false;
-            if (jurusan && jurusanPart !== jurusan.toLowerCase()) matchKelas = false;
-            if (nomor   && nomorPart   !== nomor)                 matchKelas = false;
-        }
+        const rfidStatus = u.rfid_status || 'active';
+        const statusSelectClass = rfidStatus === 'active' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800';
 
-        const visible = matchKeyword && matchRole && matchKelas;
-        row.style.display = visible ? '' : 'none';
-        if (visible) visibleCount++;
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${index + 1}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="font-medium text-gray-900">${u.name}</div>
+                <div class="text-xs text-gray-500">${u.email}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">${u.uid || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full ${badgeClass}">
+                    ${roleLabel}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${u.kelas || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <select onchange="updateRfidStatus(${u.id}, this.value, this)" 
+                    class="px-2.5 py-1 text-xs font-semibold rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-150 cursor-pointer ${statusSelectClass}">
+                    <option value="active" ${rfidStatus === 'active' ? 'selected' : ''}>Aktif</option>
+                    <option value="inactive" ${rfidStatus === 'inactive' ? 'selected' : ''}>Nonaktif</option>
+                </select>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-3">
+                ${actionHtml}
+            </td>
+        `;
+        tableBody.appendChild(row);
+
+        setTimeout(() => {
+            row.classList.remove('bg-blue-50/20');
+        }, 800);
     });
-
-    // Tampilkan pesan jika tidak ada hasil
-    let emptyRow = document.getElementById('user-empty-row');
-    if (visibleCount === 0 && hasFilter) {
-        if (!emptyRow) {
-            const tbody = document.querySelector('tbody');
-            emptyRow = document.createElement('tr');
-            emptyRow.id = 'user-empty-row';
-            emptyRow.innerHTML = `<td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">Tidak ada user yang sesuai filter.</td>`;
-            tbody.appendChild(emptyRow);
-        }
-        emptyRow.style.display = '';
-    } else if (emptyRow) {
-        emptyRow.style.display = 'none';
-    }
 }
 
-// ── Reset all filters ─────────────────────────────────────────
+function checkHasActiveFilters() {
+    const keyword  = document.getElementById('searchInput')?.value || '';
+    const angkatan = document.querySelector('input[name="filter-angkatan"]:checked')?.value || 'all';
+    const jurusan  = document.querySelector('input[name="filter-jurusan"]:checked')?.value || 'all';
+    const kelas    = document.getElementById('filter-kelas-search')?.value || '';
+    const role     = document.querySelector('input[name="filter-role"]:checked')?.value || 'all';
 
-function resetUserFilters() {
-    const search   = document.getElementById('user-search');
-    const role     = document.getElementById('user-role');
-    const tingkat  = document.getElementById('filter-tingkat');
-    const jurusan  = document.getElementById('filter-jurusan');
-    const nomor    = document.getElementById('filter-nomor');
-
-    if (search)  search.value  = '';
-    if (role)    role.value    = 'all';
-    if (tingkat) tingkat.value = '';
-
-    if (jurusan) { jurusan.value = ''; jurusan.disabled = true; }
-    if (nomor)   {
-        nomor.innerHTML = '<option value="">Semua Nomor</option>';
-        nomor.disabled  = true;
-    }
-
-    filterUsers();
+    return keyword !== '' || angkatan !== 'all' || jurusan !== 'all' || kelas !== '' || role !== 'all';
 }
 
-// ── Init on load ──────────────────────────────────────────────
+function applyFilters() {
+    fetchFilteredData();
+    const card = document.getElementById('filter-dropdown-card');
+    if (card) card.classList.add('hidden');
+}
+
+function resetFilters() {
+    const angkatanAll = document.querySelector('input[name="filter-angkatan"][value="all"]');
+    const jurusanAll  = document.querySelector('input[name="filter-jurusan"][value="all"]');
+    const roleAll     = document.querySelector('input[name="filter-role"][value="all"]');
+    const kelasInput  = document.getElementById('filter-kelas-search');
+
+    if (angkatanAll) angkatanAll.checked = true;
+    if (jurusanAll)  jurusanAll.checked  = true;
+    if (roleAll)     roleAll.checked     = true;
+    if (kelasInput)  kelasInput.value    = '';
+
+    applyFilters();
+}
+
+function resetAllFilters() {
+    const search = document.getElementById('searchInput');
+    if (search) search.value = '';
+    
+    resetFilters();
+}
+
+document.addEventListener('click', function(e) {
+    const form = document.getElementById('searchForm');
+    const dropdown = document.getElementById('searchDropdown');
+    if (form && !form.contains(e.target) && dropdown) {
+        dropdown.classList.add('hidden');
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function () {
-    filterUsers();
+    initClassesList();
+    initKelasAutocomplete();
 });

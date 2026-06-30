@@ -31,71 +31,111 @@
 
                 <div class="flex items-center justify-between mb-6 text-gray-600">
                     <div class="flex items-center gap-3 flex-wrap flex-1">
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
+                        {{-- Search Form --}}
+                        <form id="searchForm" onsubmit="return false;" class="relative">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                                <input type="text" id="searchInput" placeholder="Cari nama, email atau UID..."
+                                    value="{{ $search }}"
+                                    class="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm w-64"
+                                    autocomplete="off" oninput="liveSearchUsers(this.value)">
                             </div>
-                            <input type="text" id="user-search" placeholder="Cari nama, email atau UID..."
-                                value="{{ $search }}"
-                                class="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm w-64"
-                                oninput="filterUsers()">
+                            <div id="searchDropdown"
+                                class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            </div>
+                        </form>
+
+                        {{-- Single Filter Button with Popover --}}
+                        <div class="relative inline-block text-left" id="filter-dropdown-container">
+                            <button onclick="toggleFilterDropdown()" type="button" class="px-4 py-2 text-sm bg-gray-50 hover:bg-gray-100 border border-gray-300 text-gray-700 font-medium rounded-lg transition-all duration-200 flex items-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-filter"></i> Filter
+                            </button>
+                            
+                            {{-- Dropdown Card --}}
+                            <div id="filter-dropdown-card" class="hidden absolute left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-4 space-y-4">
+                                {{-- Radio Angkatan --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Angkatan</label>
+                                    <div class="flex flex-wrap gap-x-4 gap-y-2">
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-angkatan" value="all" checked class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">Semua</span>
+                                        </label>
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-angkatan" value="X" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">X</span>
+                                        </label>
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-angkatan" value="XI" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">XI</span>
+                                        </label>
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-angkatan" value="XII" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">XII</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {{-- Radio Jurusan --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Jurusan</label>
+                                    <div class="flex flex-wrap gap-x-4 gap-y-2">
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-jurusan" value="all" checked class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">Semua</span>
+                                        </label>
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-jurusan" value="RPL" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">RPL</span>
+                                        </label>
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-jurusan" value="DKV" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">DKV</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {{-- Search Kelas Autocomplete --}}
+                                <div class="relative">
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Kelas</label>
+                                    <input type="text" id="filter-kelas-search" autocomplete="off" placeholder="Ketik kelas (X-rpl 1, XI-dkv 2)..." 
+                                        class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <div id="filter-kelas-suggestions" class="hidden absolute left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto divide-y divide-gray-100"></div>
+                                </div>
+
+                                {{-- Radio Role --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Role</label>
+                                    <div class="flex flex-wrap gap-x-4 gap-y-2">
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-role" value="all" checked class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">Semua</span>
+                                        </label>
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-role" value="admin" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">Admin</span>
+                                        </label>
+                                        <label class="inline-flex items-center text-sm text-gray-700 cursor-pointer">
+                                            <input type="radio" name="filter-role" value="user" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                            <span class="ml-2 font-medium text-xs">User</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="flex gap-2 pt-2 border-t border-gray-100">
+                                    <button onclick="resetFilters()" type="button" class="flex-1 px-3 py-1.5 text-xs text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors font-medium">Reset</button>
+                                    <button onclick="applyFilters()" type="button" class="flex-1 px-3 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors font-medium">Terapkan</button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="relative flex items-center">
-                            <select id="user-role" onchange="filterUsers()"
-                                class="px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm appearance-none pr-8">
-                                <option value="all" {{ $role === 'all' || !$role ? 'selected' : '' }}>Semua Role</option>
-                                <option value="admin" {{ $role === 'admin' ? 'selected' : '' }}>Admin</option>
-                                <option value="user" {{ $role === 'user' ? 'selected' : '' }}>User</option>
-                            </select>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-4 absolute right-2.5 text-gray-400 pointer-events-none">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                            </svg>
-                        </div>
-
-                        <div class="relative flex items-center">
-                            <select id="filter-tingkat" onchange="onTingkatChange()"
-                                class="px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm appearance-none pr-8">
-                                <option value="">Semua Tingkat</option>
-                                <option value="X">Kelas X</option>
-                                <option value="XI">Kelas XI</option>
-                                <option value="XII">Kelas XII</option>
-                            </select>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-4 absolute right-2.5 text-gray-400 pointer-events-none">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                            </svg>
-                        </div>
-
-                        <div class="relative flex items-center">
-                            <select id="filter-jurusan" onchange="onJurusanChange()" disabled
-                                class="px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm appearance-none pr-8 disabled:opacity-50 disabled:cursor-not-allowed">
-                                <option value="">Semua Jurusan</option>
-                                <option value="rpl">RPL</option>
-                                <option value="dkv">DKV</option>
-                            </select>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-4 absolute right-2.5 text-gray-400 pointer-events-none">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                            </svg>
-                        </div>
-
-                        <div class="relative flex items-center">
-                            <select id="filter-nomor" onchange="filterUsers()" disabled
-                                class="px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm appearance-none pr-8 disabled:opacity-50 disabled:cursor-not-allowed">
-                                <option value="">Semua Kelas</option>
-                            </select>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-4 absolute right-2.5 text-gray-400 pointer-events-none">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                            </svg>
-                        </div>
-
-                        <button onclick="resetUserFilters()" id="reset-filter-btn" class="hidden px-3 py-2 text-sm text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
-                            <i class="fa-solid fa-xmark mr-1"></i> Reset
+                        {{-- Reset Filter Button --}}
+                        <button onclick="resetAllFilters()" id="reset-filter-btn" class="hidden px-3 py-2 text-sm text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fa-solid fa-xmark mr-1"></i> Reset All
                         </button>
                     </div>
 
@@ -178,12 +218,30 @@
                     </table>
                 </div>
 
-                <div class="mt-4">
+                <div class="mt-4" id="pagination-container">
                     {{ $users->links() }}
                 </div>
             </div>
         </main>
     </div>
 
+    <script>
+        window.autocompleteUrl = "{{ route('users.autocomplete') }}";
+        window.csrfToken = "{{ csrf_token() }}";
+        window.authUserId = "{{ auth()->id() }}";
+        
+        function toggleFilterDropdown() {
+            const card = document.getElementById('filter-dropdown-card');
+            card.classList.toggle('hidden');
+        }
+
+        document.addEventListener('click', function(e) {
+            const container = document.getElementById('filter-dropdown-container');
+            const card = document.getElementById('filter-dropdown-card');
+            if (container && !container.contains(e.target) && card) {
+                card.classList.add('hidden');
+            }
+        });
+    </script>
     <script src="{{ asset('js/filterUsers.js') }}"></script>
 @endsection

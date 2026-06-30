@@ -148,4 +148,44 @@ class UserController extends Controller
 
         return redirect()->route('users.index')->with('success', 'User berhasil dihapus!');
     }
+
+    public function autocomplete(Request $request)
+    {
+        $keyword = $request->query('keyword');
+        $angkatan = $request->query('angkatan');
+        $jurusan = $request->query('jurusan');
+        $kelas = $request->query('kelas');
+        $role = $request->query('role');
+
+        $query = User::query();
+
+        if ($keyword) {
+            $query->where(function ($q) use ($keyword) {
+                $q->where('name', 'like', '%' . $keyword . '%')
+                  ->orWhere('email', 'like', '%' . $keyword . '%')
+                  ->orWhere('uid', 'like', '%' . $keyword . '%');
+            });
+        }
+
+        if ($role && $role !== 'all') {
+            $query->where('role', $role);
+        }
+
+        if ($angkatan && $angkatan !== 'all') {
+            $query->where('kelas', 'like', $angkatan . '-%');
+        }
+
+        if ($jurusan && $jurusan !== 'all') {
+            $query->where('kelas', 'like', '%-' . $jurusan . ' %');
+        }
+
+        if ($kelas) {
+            $query->where('kelas', 'like', '%' . $kelas . '%');
+        }
+
+        $users = $query->orderBy('name', 'asc')->take(50)->get();
+
+        return response()->json($users);
+    }
 }
+

@@ -93,5 +93,5 @@
         </main>
     </div>
 
-@vite(['resources/js/user-form.js'])
+    <script src="{{ asset('js/user-form.js') }}"></script>
 @endsection
