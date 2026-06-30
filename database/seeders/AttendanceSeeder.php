@@ -17,10 +17,10 @@ class AttendanceSeeder extends Seeder
         // Ambil semua user dengan role 'user' (siswa)
         $students = User::where('role', 'user')->get();
 
-        // Pastikan jumlah siswa di database minimal ada 3 orang
+        // Pastikan jumlah siswa di database minimal ada 2 orang
         if ($students->count() >= 2) {
             
-            // Data Absen 1: Siswa pertama (Agum Renggi) -> Hadir Hari Ini
+            // Data Absen 1: Siswa pertama (Ramdhani) -> Hadir Hari Ini
             Attendance::create([
                 'user_id' => $students[0]->id,
                 'date'    => Carbon::today()->toDateString(),
@@ -28,7 +28,7 @@ class AttendanceSeeder extends Seeder
                 'status'  => 'Hadir',
             ]);
 
-            // Data Absen 2: Siswa kedua (Geisika Yoan Dinata) -> Sakit Kemarin
+            // Data Absen 2: Siswa kedua (Ridwan Saepuloh) -> Sakit Kemarin
             Attendance::create([
                 'user_id' => $students[1]->id,
                 'date'    => Carbon::yesterday()->toDateString(),
