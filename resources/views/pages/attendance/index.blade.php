@@ -63,7 +63,8 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 absolute left-3 text-gray-400 pointer-events-none">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
                             </svg>
-                            <input type="date" id="date-filter" onchange="filterAttendance()" onclick="this.showPicker()"
+                            <input type="date" id="date-filter" value="{{ $dateFilter }}"
+                                onchange="goToDate(this.value)" onclick="this.showPicker()"
                                 onfocus="this.showPicker()"
                                 class="[&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm appearance-none">
                         </div>
@@ -77,7 +78,13 @@
                     </div>
                 </div>
 
-                <div class="border border-gray-200 rounded-xl shadow-sm overflow-hidden bg-white">
+                <div class="relative border border-gray-200 rounded-xl shadow-sm overflow-hidden bg-white">
+                    <div id="table-loader" class="absolute inset-0 bg-white/75 backdrop-blur-sm flex items-center justify-center transition-all duration-300 opacity-0 pointer-events-none z-10">
+                        <div class="flex flex-col items-center gap-2">
+                            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-600"></i>
+                            <span class="text-xs text-gray-500 font-semibold tracking-wide">Memuat data absensi...</span>
+                        </div>
+                    </div>
                     <table class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
@@ -130,16 +137,19 @@
                                                             {{ $attendance->status }}
                                                         </span>
                                                     </td>
-                                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-3">
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-2">
                                                         <a href="{{ route('attendance.show', $attendance->id) }}"
-                                                            class="text-blue-600 hover:text-blue-900 transition-colors duration-200">
-                                                            Detail
+                                                            class="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-800 transition-all duration-200"
+                                                            title="Detail Absensi">
+                                                            <i class="fa-solid fa-eye text-sm"></i>
                                                         </a>
-                                                        <form action="{{ route('attendance.destroy', $attendance->id) }}" method="POST" onsubmit="return confirm('Hapus data absensi ini?')">
+                                                        <form action="{{ route('attendance.destroy', $attendance->id) }}" method="POST" onsubmit="return confirm('Hapus data absensi ini?')" class="inline">
                                                             @csrf
                                                             @method('DELETE')
-                                                            <button type="submit" class="text-red-600 hover:text-red-900 transition-colors duration-200">
-                                                                Hapus
+                                                            <button type="submit"
+                                                                class="flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-800 transition-all duration-200"
+                                                                title="Hapus Absensi">
+                                                                <i class="fa-solid fa-trash-can text-sm"></i>
                                                             </button>
                                                         </form>
                                                     </td>
@@ -161,12 +171,8 @@
         </main>
     </div>
 
-    {{-- Modal Export Excel --}}
     <div id="export-modal" class="fixed inset-0 z-50 hidden items-center justify-center">
-        {{-- Backdrop --}}
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeExportModal()"></div>
-
-        {{-- Modal Card --}}
         <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 animate-fadeIn">
             <div class="flex items-center justify-between mb-5">
                 <div class="flex items-center gap-2">
@@ -245,6 +251,8 @@
 
     <script>
         window.autocompleteUrl = "{{ route('attendance.autocomplete') }}";
+        window.allDataUrl      = "{{ route('attendance.all-data') }}";
+        window.csrfToken = "{{ csrf_token() }}";
 
         function openExportModal() {
             const modal = document.getElementById('export-modal');
@@ -257,7 +265,13 @@
             modal.classList.add('hidden');
             modal.classList.remove('flex');
         }
-    </script>
+
+        function goToDate(date) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('date', date);
+            url.searchParams.delete('page');
+            window.location.href = url.toString();
+        }</script>
 
     <script src="{{ asset('js/filterAttendance.js') }}"></script>
 @endsection

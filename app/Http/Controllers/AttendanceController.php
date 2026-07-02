@@ -7,7 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Pagination\LengthAwarePaginator;
-
+use Illuminate\Support\Facades\Http;
 class AttendanceController extends Controller
 {
     private function getMappedAttendances()
@@ -26,6 +26,7 @@ class AttendanceController extends Controller
                     'uid'   => $dbUser->uid,
                     'role'  => $dbUser->role,
                     'kelas' => $dbUser->kelas,
+                    'no_hp' => $dbUser->no_hp,
                 ];
             } else {
                 $userObj = (object) [
@@ -35,6 +36,7 @@ class AttendanceController extends Controller
                     'uid'   => '-',
                     'role'  => 'user',
                     'kelas' => '-',
+                    'no_hp' => null,
                 ];
             }
 
@@ -51,8 +53,16 @@ class AttendanceController extends Controller
 
     public function index(Request $request)
     {
-        $search = $request->query('search');
+        $search     = $request->query('search');
+        $dateFilter = $request->query('date', \Carbon\Carbon::today()->toDateString());
+
         $attendances = $this->getMappedAttendances();
+
+        if ($dateFilter) {
+            $attendances = $attendances->filter(function ($att) use ($dateFilter) {
+                return $att->date === $dateFilter;
+            });
+        }
 
         if ($search) {
             $attendances = $attendances->filter(function ($att) use ($search) {
@@ -64,7 +74,7 @@ class AttendanceController extends Controller
         }
 
         $attendances = $attendances->sortBy(function ($att) {
-            return strtolower($att->user->name ?? '');
+            return $att->user->name;
         })->values();
 
         $page = LengthAwarePaginator::resolveCurrentPage() ?: 1;
@@ -88,8 +98,9 @@ class AttendanceController extends Controller
             ->pluck('kelas');
 
         return view('pages.attendance.index', [
-            'attendances' => $paginator,
-            'availableClasses' => $availableClasses
+            'attendances'      => $paginator,
+            'availableClasses' => $availableClasses,
+            'dateFilter'       => $dateFilter,
         ]);
     }
 
@@ -99,10 +110,7 @@ class AttendanceController extends Controller
             'uid' => 'required|string',
         ]);
 
-        $users = JsonDatabase::getUsers();
-        $user = $users->first(function ($u) use ($request) {
-            return strcasecmp($u['uid'], $request->uid) === 0;
-        });
+        $user = \App\Models\User::where('uid', $request->uid)->first();
 
         if (!$user) {
             return response()->json([
@@ -111,7 +119,7 @@ class AttendanceController extends Controller
             ], 404);
         }
 
-        $rfidStatus = $user['rfid_status'] ?? 'active';
+        $rfidStatus = $user->rfid_status ?? 'active';
         if ($rfidStatus !== 'active') {
             return response()->json([
                 'success' => false,
@@ -122,13 +130,13 @@ class AttendanceController extends Controller
         $today = Carbon::today()->toDateString();
         $attendances = JsonDatabase::getAttendances();
         $alreadyTapped = $attendances->contains(function ($att) use ($user, $today) {
-            return $att['user_id'] == $user['id'] && $att['date'] === $today;
+            return $att['user_id'] == $user->id && $att['date'] === $today;
         });
 
         if ($alreadyTapped) {
             return response()->json([
                 'success' => false,
-                'message' => 'Halo ' . $user['name'] . ', Anda sudah melakukan absensi hari ini.',
+                'message' => 'Halo ' . $user->name . ', Anda sudah melakukan absensi hari ini.',
             ], 400);
         }
 
@@ -136,7 +144,7 @@ class AttendanceController extends Controller
         $newId = $attendances->max('id') ? $attendances->max('id') + 1 : 1;
         $newAttendance = [
             'id'      => $newId,
-            'user_id' => $user['id'],
+            'user_id' => $user->id,
             'date'    => $today,
             'time_in' => $currentTime, 
             'status'  => 'Hadir',
@@ -148,20 +156,25 @@ class AttendanceController extends Controller
         \App\Models\Attendance::updateOrCreate(
             ['id' => $newId],
             [
-                'user_id' => $user['id'],
+                'user_id' => $user->id,
                 'date'    => $today,
                 'time_in' => $currentTime,
                 'status'  => 'Hadir',
             ]
         );
 
-        $this->saveToJson($user['name'], $request->uid, $today, $currentTime);
+        $this->saveToJson($user->name, $request->uid, $today, $currentTime);
+
+        if (!empty($user->no_hp)) {
+            $this->kirimNotifikasiWA($user->no_hp, $user->name, $user->kelas, $currentTime);
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Absen masuk berhasil dicatat!',
             'data'    => [
-                'nama'    => $user['name'],
+                'nama'    => $user->name,
+                'kelas'   => $user->kelas,
                 'tanggal' => $newAttendance['date'],
                 'jam'     => $newAttendance['time_in'],
                 'status'  => $newAttendance['status'],
@@ -188,6 +201,54 @@ class AttendanceController extends Controller
 
         $arrayData[] = $newData;
         Storage::disk('local')->put($fileName, json_encode($arrayData, JSON_PRETTY_PRINT));
+    }
+
+  private function kirimNotifikasiWA($nomor, $nama,$kelas, $jam)
+    {
+        $urlApi = 'http://127.0.0.1:3000/send-message';
+        
+        $pesan = "Yth. Bapak/Ibu Orang Tua/Wali dari Siswa {$kelas},\n \n";
+        $pesan .= "Kami menginfokan bahwa putra/putri Bapak/Ibu telah tiba di sekolah.\n \n";
+        $pesan .= "Detail Kehadiran: \n";
+        $pesan .= "Nama : {$nama}\n";
+        $pesan .= "Kelas : {$kelas}\n";
+        $pesan .= "Jam Masuk : {$jam}\n";
+        $pesan .= "Status : Hadir\n \n";
+        $pesan .= "Terima kasih atas perhatian Bapak/Ibu. Selamat beraktivitas dan semoga putra/putri mendapatkan kelancaran dalam belajar hari ini.";
+
+        $maxRetry = 3;
+        $retryDelay = 2;
+
+        for ($attempt = 1; $attempt <= $maxRetry; $attempt++) {
+            try {
+                $response = Http::timeout(10)->post($urlApi, [
+                    'number'  => $nomor,
+                    'message' => $pesan
+                ]);
+
+                if ($response->successful()) {
+                    logger("WhatsApp sukses dikirim untuk: {$nama}" . ($attempt > 1 ? " (percobaan ke-{$attempt})" : ""));
+                    return;
+                }
+
+                if ($response->status() === 503) {
+                    logger("WA client belum siap (503), retry {$attempt}/{$maxRetry} untuk: {$nama}");
+                    if ($attempt < $maxRetry) {
+                        sleep($retryDelay);
+                    }
+                    continue;
+                }
+
+                logger("GAGAL kirim WA. Status: " . $response->status() . " | Body: " . $response->body());
+                return;
+
+            } catch (\Exception $e) {
+                logger("Koneksi ke Node.js GAGAL. Error: " . $e->getMessage());
+                return;
+            }
+        }
+
+        logger("WA gagal terkirim setelah {$maxRetry}x percobaan untuk: {$nama} (client belum siap)");
     }
 
     public function autocomplete(Request $request)
@@ -227,6 +288,7 @@ class AttendanceController extends Controller
                 'uid'             => $attendance->user->uid ?? '-',
                 'name'            => $attendance->user->name ?? 'User Terhapus',
                 'email'           => $attendance->user->email ?? '-',
+                'kelas'           => $attendance->user->kelas ?? '-',
                 'date'            => $attendance->date,
                 'date_formatted'  => \Carbon\Carbon::parse($attendance->date)->translatedFormat('d F Y'),
                 'time_in'         => $attendance->time_in,
@@ -259,5 +321,41 @@ class AttendanceController extends Controller
         JsonDatabase::saveAttendances($attendances);
 
         return redirect()->route('attendance.index')->with('success', 'Data absensi berhasil dihapus.');
+    }
+    public function getAllData(Request $request)
+    {
+        $attendances = $this->getMappedAttendances();
+
+        if ($request->filled('month')) {
+            $attendances = $attendances->filter(function ($att) use ($request) {
+                return date('m', strtotime($att->date)) === str_pad($request->month, 2, '0', STR_PAD_LEFT);
+            });
+        }
+
+        if ($request->filled('year')) {
+            $attendances = $attendances->filter(function ($att) use ($request) {
+                return date('Y', strtotime($att->date)) === (string) $request->year;
+            });
+        }
+
+        $attendances = $attendances->sortBy(function ($att) {
+            return $att->date . ' ' . ($att->user->name ?? '');
+        })->values();
+
+        $result = $attendances->map(function ($att) {
+            return [
+                'id'      => $att->id,
+                'date'    => $att->date,
+                'time_in' => $att->time_in,
+                'status'  => $att->status,
+                'user'    => [
+                    'name'  => $att->user->name ?? 'User Terhapus',
+                    'uid'   => $att->user->uid ?? '-',
+                    'kelas' => $att->user->kelas ?? '-',
+                ],
+            ];
+        });
+
+        return response()->json($result);
     }
 }

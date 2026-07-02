@@ -82,10 +82,11 @@ class JsonDatabase
                 'id'          => $dbUser->id,
                 'name'        => $dbUser->name,
                 'email'       => $dbUser->email,
-                'password' => $dbUser->password, // Pertahankan password hash
-                'uid'      => $dbUser->uid,
-                'role'     => $dbUser->role,
-                'kelas'    => $dbUser->kelas,
+                'password'    => $dbUser->password, // Pertahankan password hash
+                'uid'         => $dbUser->uid,
+                'role'        => $dbUser->role,
+                'kelas'       => $dbUser->kelas,
+                'no_hp'       => $dbUser->no_hp,
                 'rfid_status' => $dbUser->rfid_status ?? 'active',
             ];
         }
@@ -93,13 +94,14 @@ class JsonDatabase
         // Jika database kosong, buat user default Admin saja
         if (empty($defaultUsers)) {
             $adminUser = [
-                'id'       => 1,
-                'name'     => 'Admin',
-                'email'    => 'admin@gmail.com',
-                'password' => Hash::make('admin123'),
-                'uid'      => 'Admin',
-                'role'     => 'admin',
-                'kelas'    => null,
+                'id'          => 1,
+                'name'        => 'Admin',
+                'email'       => 'admin@gmail.com',
+                'password'    => Hash::make('admin123'),
+                'uid'         => 'Admin',
+                'role'        => 'admin',
+                'kelas'       => null,
+                'no_hp'       => null,
                 'rfid_status' => 'active',
             ];
             
@@ -109,12 +111,13 @@ class JsonDatabase
             \App\Models\User::updateOrCreate(
                 ['email' => $adminUser['email']],
                 [
-                    'id'       => $adminUser['id'],
-                    'name'     => $adminUser['name'],
-                    'password' => $adminUser['password'],
-                    'uid'      => $adminUser['uid'],
-                    'role'     => $adminUser['role'],
-                    'kelas'    => $adminUser['kelas'],
+                    'id'          => $adminUser['id'],
+                    'name'        => $adminUser['name'],
+                    'password'    => $adminUser['password'],
+                    'uid'         => $adminUser['uid'],
+                    'role'        => $adminUser['role'],
+                    'kelas'       => $adminUser['kelas'],
+                    'no_hp'       => $adminUser['no_hp'],
                     'rfid_status' => $adminUser['rfid_status'],
                 ]
             );
@@ -158,13 +161,14 @@ class JsonDatabase
     {
         $users = \App\Models\User::all()->map(function($user) {
             return [
-                'id'       => $user->id,
-                'name'     => $user->name,
-                'email'    => $user->email,
-                'password' => $user->password,
-                'uid'      => $user->uid,
-                'role'     => $user->role,
-                'kelas'    => $user->kelas,
+                'id'          => $user->id,
+                'name'        => $user->name,
+                'email'       => $user->email,
+                'password'    => $user->password,
+                'uid'         => $user->uid,
+                'role'        => $user->role,
+                'kelas'       => $user->kelas,
+                'no_hp'       => $user->no_hp,
                 'rfid_status' => $user->rfid_status ?? 'active',
             ];
         })->values();

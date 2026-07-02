@@ -23,6 +23,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('attendance')->name('attendance.')->controller(AttendanceController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/search-autocomplete', 'autocomplete')->name('autocomplete');
+        Route::get('/all-data', 'getAllData')->name('all-data');
         Route::get('/{id}', 'show')->name('show');
         Route::delete('/{id}', 'destroy')->name('destroy');
     });

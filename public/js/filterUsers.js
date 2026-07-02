@@ -1,6 +1,3 @@
-// ============================================================
-// filterUsers.js – Live search + custom radio popover filter
-// ============================================================
 
 function updateRfidStatus(userId, newStatus, selectEl) {
     if (newStatus === 'active') {
@@ -33,7 +30,6 @@ function updateRfidStatus(userId, newStatus, selectEl) {
 let debounceTimer;
 const classesList = [];
 
-// Generate daftar kelas untuk autocomplete
 function initClassesList() {
     const majors = [
         { name: 'rpl', count: 10 },
@@ -117,12 +113,20 @@ function liveSearchUsers(keyword) {
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
+        const tableLoader = document.getElementById('table-loader');
+        if (tableLoader) {
+            tableLoader.classList.remove('opacity-0', 'pointer-events-none');
+            tableLoader.classList.add('opacity-100', 'pointer-events-auto');
+        }
+
         const angkatan = document.querySelector('input[name="filter-angkatan"]:checked')?.value || 'all';
         const jurusan  = document.querySelector('input[name="filter-jurusan"]:checked')?.value || 'all';
         const kelas    = document.getElementById('filter-kelas-search')?.value || '';
         const role     = document.querySelector('input[name="filter-role"]:checked')?.value || 'all';
 
         const url = `${window.autocompleteUrl}?keyword=${encodeURIComponent(keyword)}&angkatan=${angkatan}&jurusan=${jurusan}&kelas=${encodeURIComponent(kelas)}&role=${role}`;
+
+        const startTime = Date.now();
 
         fetch(url)
             .then(response => response.json())
@@ -150,12 +154,33 @@ function liveSearchUsers(keyword) {
                         dropdown.classList.add('hidden');
                     }
                 }
-                updateTableContent(data);
+
+                const elapsedTime = Date.now() - startTime;
+                const delay = Math.max(0, 300 - elapsedTime);
+                setTimeout(() => {
+                    updateTableContent(data);
+                    if (tableLoader) {
+                        tableLoader.classList.remove('opacity-100', 'pointer-events-auto');
+                        tableLoader.classList.add('opacity-0', 'pointer-events-none');
+                    }
+                }, delay);
+            })
+            .catch(() => {
+                if (tableLoader) {
+                    tableLoader.classList.remove('opacity-100', 'pointer-events-auto');
+                    tableLoader.classList.add('opacity-0', 'pointer-events-none');
+                }
             });
     }, 300);
 }
 
 function fetchFilteredData() {
+    const tableLoader = document.getElementById('table-loader');
+    if (tableLoader) {
+        tableLoader.classList.remove('opacity-0', 'pointer-events-none');
+        tableLoader.classList.add('opacity-100', 'pointer-events-auto');
+    }
+
     const keyword  = document.getElementById('searchInput')?.value || '';
     const angkatan = document.querySelector('input[name="filter-angkatan"]:checked')?.value || 'all';
     const jurusan  = document.querySelector('input[name="filter-jurusan"]:checked')?.value || 'all';
@@ -164,10 +189,26 @@ function fetchFilteredData() {
 
     const url = `${window.autocompleteUrl}?keyword=${encodeURIComponent(keyword)}&angkatan=${angkatan}&jurusan=${jurusan}&kelas=${encodeURIComponent(kelas)}&role=${role}`;
 
+    const startTime = Date.now();
+
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            updateTableContent(data);
+            const elapsedTime = Date.now() - startTime;
+            const delay = Math.max(0, 300 - elapsedTime);
+            setTimeout(() => {
+                updateTableContent(data);
+                if (tableLoader) {
+                    tableLoader.classList.remove('opacity-100', 'pointer-events-auto');
+                    tableLoader.classList.add('opacity-0', 'pointer-events-none');
+                }
+            }, delay);
+        })
+        .catch(() => {
+            if (tableLoader) {
+                tableLoader.classList.remove('opacity-100', 'pointer-events-auto');
+                tableLoader.classList.add('opacity-0', 'pointer-events-none');
+            }
         });
 }
 
@@ -207,15 +248,19 @@ function updateTableContent(items) {
         
         const isSelf = String(window.authUserId) === String(u.id);
         const actionHtml = `
-            <a href="/users/${u.id}/edit" class="text-blue-600 hover:text-blue-900 transition-colors duration-200">
-                Edit
+            <a href="/users/${u.id}/edit" 
+               class="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-800 transition-all duration-200"
+               title="Edit User">
+                <i class="fa-solid fa-pen-to-square text-sm"></i>
             </a>
             ${!isSelf ? `
                 <form action="/users/${u.id}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus user ini? Semua data absen terkait juga akan hilang.')" style="display:inline;">
                     <input type="hidden" name="_token" value="${window.csrfToken}">
                     <input type="hidden" name="_method" value="DELETE">
-                    <button type="submit" class="text-red-600 hover:text-red-900 transition-colors duration-200">
-                        Hapus
+                    <button type="submit" 
+                            class="flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-800 transition-all duration-200"
+                            title="Hapus User">
+                        <i class="fa-solid fa-trash-can text-sm"></i>
                     </button>
                 </form>
             ` : ''}
@@ -244,7 +289,7 @@ function updateTableContent(items) {
                     <option value="inactive" ${rfidStatus === 'inactive' ? 'selected' : ''}>Nonaktif</option>
                 </select>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-3">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-2">
                 ${actionHtml}
             </td>
         `;

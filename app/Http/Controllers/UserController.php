@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\JsonDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -56,6 +57,7 @@ class UserController extends Controller
             'uid'         => 'required|string|max:50|unique:users,uid',
             'role'        => 'required|in:admin,user',
             'kelas'       => 'nullable|string|max:50',
+            'no_hp'       => 'nullable|string|max:15',
             'rfid_status' => 'required|in:active,inactive',
         ]);
 
@@ -66,6 +68,7 @@ class UserController extends Controller
             'uid'         => $request->uid,
             'role'        => $request->role,
             'kelas'       => $request->role === 'admin' ? null : $request->kelas,
+            'no_hp'       => $request->no_hp,
             'rfid_status' => $request->rfid_status,
         ]);
 
@@ -91,6 +94,7 @@ class UserController extends Controller
             'uid'         => ['required', 'string', 'max:50', Rule::unique('users')->ignore($user->id)],
             'role'        => 'required|in:admin,user',
             'kelas'       => 'nullable|string|max:50',
+            'no_hp'       => 'nullable|string|max:15',
             'rfid_status' => 'required|in:active,inactive',
         ]);
 
@@ -100,6 +104,7 @@ class UserController extends Controller
             'uid'         => $request->uid,
             'role'        => $request->role,
             'kelas'       => $request->role === 'admin' ? null : $request->kelas,
+            'no_hp'       => $request->no_hp,
             'rfid_status' => $request->rfid_status,
         ];
 
@@ -138,7 +143,7 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
-        if (auth()->id() === $user->id) {
+        if (Auth::id() === $user->id) {
             return redirect()->route('users.index')->with('error', 'Anda tidak dapat menghapus diri sendiri!');
         }
 

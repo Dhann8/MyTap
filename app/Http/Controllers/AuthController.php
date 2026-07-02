@@ -52,7 +52,9 @@ class AuthController extends Controller
         }
         $studentMonthlyData = [];
         foreach ($classes as $cls) {
-            $classUsers = $users->where('kelas', $cls);
+            $classUsers = $users->where('kelas', $cls)->sortBy(function ($usr) {
+                return strtolower($usr['name']);
+            });
             
             $studentsList = [];
             foreach ($classUsers as $usr) {

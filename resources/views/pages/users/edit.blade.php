@@ -76,10 +76,17 @@
                                     </div>
                                 </div>
 
-                                <div id="kelas_group" class="relative">
-                                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Kelas</label>
-                                    <input type="text" id="kelas" name="kelas" autocomplete="off" value="{{ old('kelas', $user->kelas) }}" placeholder="Ketik untuk mencari kelas (Contoh: X-rpl 1, X-dkv 1)..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <div id="kelas_suggestions" class="hidden absolute left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100"></div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div id="kelas_group" class="relative">
+                                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Kelas</label>
+                                        <input type="text" id="kelas" name="kelas" autocomplete="off" value="{{ old('kelas', $user->kelas) }}" placeholder="Ketik untuk mencari kelas (Contoh: X-rpl 1, X-dkv 1)..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                        <div id="kelas_suggestions" class="hidden absolute left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100"></div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">No. HP / WhatsApp</label>
+                                        <input type="text" name="no_hp" value="{{ old('no_hp', $user->no_hp) }}" placeholder="08123456789" maxlength="15" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    </div>
                                 </div>
 
                                 <div class="flex justify-end gap-3 pt-6 border-t border-gray-100 mt-6">
