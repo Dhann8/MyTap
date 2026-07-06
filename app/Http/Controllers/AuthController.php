@@ -76,7 +76,7 @@ class AuthController extends Controller
             $studentMonthlyData[$cls] = $studentsList;
         }
 
-        return view('pages.dashboard', compact(
+        return view('dashboard.index', compact(
             'totalSiswa', 
             'hadirHariIni', 
             'tidakHadir', 
@@ -92,7 +92,7 @@ class AuthController extends Controller
 
     public function showLogin()
     {
-        return view('pages.auth.login');
+        return view('auth.login');
     }
 
     public function login(Request $request)

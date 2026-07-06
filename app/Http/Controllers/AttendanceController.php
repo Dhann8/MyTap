@@ -97,7 +97,7 @@ class AttendanceController extends Controller
             ->distinct()
             ->pluck('kelas');
 
-        return view('pages.attendance.index', [
+        return view('dashboard.attendance.index', [
             'attendances'      => $paginator,
             'availableClasses' => $availableClasses,
             'dateFilter'       => $dateFilter,
@@ -307,7 +307,7 @@ class AttendanceController extends Controller
             abort(404);
         }
 
-        return view('pages.attendance.show', compact('attendance'));
+        return view('dashboard.attendance.show', compact('attendance'));
     }
 
     public function destroy($id)
