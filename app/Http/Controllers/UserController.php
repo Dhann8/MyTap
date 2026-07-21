@@ -40,12 +40,12 @@ class UserController extends Controller
             ->distinct()
             ->pluck('kelas');
 
-        return view('dashboard.users.index', compact('users', 'search', 'role', 'kelas', 'availableClasses'));
+        return view('users.index', compact('users', 'search', 'role', 'kelas', 'availableClasses'));
     }
 
     public function create()
     {
-        return view('dashboard.users.create');
+        return view('users.create');
     }
 
     public function store(Request $request)
@@ -80,7 +80,7 @@ class UserController extends Controller
     public function edit($id)
     {
         $user = User::findOrFail($id);
-        return view('dashboard.users.edit', compact('user'));
+        return view('users.edit', compact('user'));
     }
 
     public function update(Request $request, $id)

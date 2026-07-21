@@ -97,7 +97,7 @@ class AttendanceController extends Controller
             ->distinct()
             ->pluck('kelas');
 
-        return view('dashboard.attendance.index', [
+        return view('attendances.index', [
             'attendances'      => $paginator,
             'availableClasses' => $availableClasses,
             'dateFilter'       => $dateFilter,
@@ -106,10 +106,6 @@ class AttendanceController extends Controller
 
     public function scanRfid(Request $request)
     {
-        $request->validate([
-            'uid' => 'required|string',
-        ]);
-
         $user = \App\Models\User::where('uid', $request->uid)->first();
 
         if (!$user) {
@@ -307,7 +303,7 @@ class AttendanceController extends Controller
             abort(404);
         }
 
-        return view('dashboard.attendance.show', compact('attendance'));
+        return view('attendances.show', compact('attendance'));
     }
 
     public function destroy($id)
@@ -320,7 +316,7 @@ class AttendanceController extends Controller
         });
         JsonDatabase::saveAttendances($attendances);
 
-        return redirect()->route('attendance.index')->with('success', 'Data absensi berhasil dihapus.');
+        return redirect()->route('attendances.index')->with('success', 'Data absensi berhasil dihapus.');
     }
     public function getAllData(Request $request)
     {
