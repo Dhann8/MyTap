@@ -27,7 +27,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/{id}', 'show')->name('show');
         Route::delete('/{id}', 'destroy')->name('destroy');
     });
-
+    
     // Manajemen Data Users
     Route::prefix('users')->name('users.')->controller(UserController::class)->group(function () {
         Route::get('/', 'index')->name('index');
