@@ -19,21 +19,21 @@ class AttendanceSeeder extends Seeder
 
         // Pastikan jumlah siswa di database minimal ada 2 orang
         if ($students->count() >= 2) {
-            
+
             // Data Absen 1: Siswa pertama (Ramdhani) -> Hadir Hari Ini
             Attendance::create([
                 'user_id' => $students[0]->id,
-                'date'    => Carbon::today()->toDateString(),
+                'date' => Carbon::today()->toDateString(),
                 'time_in' => '07:05:00',
-                'status'  => 'Hadir',
+                'status' => 'Hadir',
             ]);
 
             // Data Absen 2: Siswa kedua (Ridwan Saepuloh) -> Sakit Kemarin
             Attendance::create([
                 'user_id' => $students[1]->id,
-                'date'    => Carbon::yesterday()->toDateString(),
+                'date' => Carbon::yesterday()->toDateString(),
                 'time_in' => '00:00:00',
-                'status'  => 'Sakit',
+                'status' => 'Sakit',
             ]);
         }
     }

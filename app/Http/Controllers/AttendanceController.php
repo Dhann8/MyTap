@@ -2,17 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attendance;
+use App\Models\User;
 use App\Services\JsonDatabase;
 use Carbon\Carbon;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+
 class AttendanceController extends Controller
 {
-    private function getMappedAttendances()
+    private function getMappedAttendances(): Collection
     {
-        $dbUsers = \App\Models\User::all()->keyBy('id');
+        $dbUsers = User::all()->keyBy('id');
         $attendances = JsonDatabase::getAttendances();
 
         return $attendances->map(function ($att) use ($dbUsers) {
@@ -20,41 +27,42 @@ class AttendanceController extends Controller
 
             if ($dbUser) {
                 $userObj = (object) [
-                    'id'    => $dbUser->id,
-                    'name'  => $dbUser->name,
+                    'id' => $dbUser->id,
+                    'name' => $dbUser->name,
                     'email' => $dbUser->email,
-                    'uid'   => $dbUser->uid,
-                    'role'  => $dbUser->role,
+                    'uid' => $dbUser->uid,
+                    'role' => $dbUser->role,
                     'kelas' => $dbUser->kelas,
                     'no_hp' => $dbUser->no_hp,
                 ];
             } else {
                 $userObj = (object) [
-                    'id'    => null,
-                    'name'  => 'User Terhapus',
+                    'id' => null,
+                    'name' => 'User Terhapus',
                     'email' => '-',
-                    'uid'   => '-',
-                    'role'  => 'user',
+                    'uid' => '-',
+                    'role' => 'user',
                     'kelas' => '-',
                     'no_hp' => null,
                 ];
             }
 
             return (object) [
-                'id'      => $att['id'],
+                'id' => $att['id'],
                 'user_id' => $att['user_id'],
-                'date'    => $att['date'],
+                'date' => $att['date'],
                 'time_in' => $att['time_in'],
-                'status'  => $att['status'],
-                'user'    => $userObj,
+                'time_out' => $att['time_out'] ?? null,
+                'status' => $att['status'],
+                'user' => $userObj,
             ];
         });
     }
 
-    public function index(Request $request)
+    public function index(Request $request): View
     {
-        $search     = $request->query('search');
-        $dateFilter = $request->query('date', \Carbon\Carbon::today()->toDateString());
+        $search = $request->query('search');
+        $dateFilter = $request->query('date', Carbon::today()->toDateString());
 
         $attendances = $this->getMappedAttendances();
 
@@ -69,6 +77,7 @@ class AttendanceController extends Controller
                 $searchLower = strtolower($search);
                 $nameMatch = $att->user && str_contains(strtolower($att->user->name), $searchLower);
                 $uidMatch = $att->user && str_contains(strtolower($att->user->uid), $searchLower);
+
                 return $nameMatch || $uidMatch;
             });
         }
@@ -87,28 +96,28 @@ class AttendanceController extends Controller
             $perPage,
             $page,
             [
-                'path'  => LengthAwarePaginator::resolveCurrentPath(),
-                'query' => $request->query()
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'query' => $request->query(),
             ]
         );
 
-        $availableClasses = \App\Models\User::whereNotNull('kelas')
+        $availableClasses = User::whereNotNull('kelas')
             ->where('kelas', '!=', '')
             ->distinct()
             ->pluck('kelas');
 
         return view('attendances.index', [
-            'attendances'      => $paginator,
+            'attendances' => $paginator,
             'availableClasses' => $availableClasses,
-            'dateFilter'       => $dateFilter,
+            'dateFilter' => $dateFilter,
         ]);
     }
 
-    public function scanRfid(Request $request)
+    public function scanRfid(Request $request): JsonResponse
     {
-        $user = \App\Models\User::where('uid', $request->uid)->first();
+        $user = User::where('uid', $request->uid)->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Kartu RFID tidak dikenali atau belum terdaftar.',
@@ -124,68 +133,126 @@ class AttendanceController extends Controller
         }
 
         $today = Carbon::today()->toDateString();
+        $currentTime = Carbon::now()->toTimeString();
+        $currentTimeCarbon = Carbon::now();
+
+        $minimalDatang = get_setting('minimal_datang', '06:00');
+        $jamMasuk = get_setting('jam_masuk', '07:00');
+        $toleransi = (int) get_setting('toleransi_terlambat', '15');
+        $jamPulang = get_setting('jam_pulang', '15:00');
+
+        $minimalDatangCarbon = Carbon::parse($minimalDatang);
+        $jamMasukCarbon = Carbon::parse($jamMasuk);
+        $batasTerlambatCarbon = $jamMasukCarbon->copy()->addMinutes($toleransi);
+        $jamPulangCarbon = Carbon::parse($jamPulang);
+
         $attendances = JsonDatabase::getAttendances();
-        $alreadyTapped = $attendances->contains(function ($att) use ($user, $today) {
+        $attendanceTodayKey = $attendances->search(function ($att) use ($user, $today) {
             return $att['user_id'] == $user->id && $att['date'] === $today;
         });
 
-        if ($alreadyTapped) {
+        if ($attendanceTodayKey !== false) {
+            $attToday = $attendances[$attendanceTodayKey];
+            if (isset($attToday['time_out']) && $attToday['time_out'] !== null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Halo '.$user->name.', Anda sudah melakukan absensi pulang hari ini.',
+                ], 400);
+            }
+
+            if ($currentTimeCarbon->lt($jamPulangCarbon)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Belum waktunya pulang. Jam pulang: '.$jamPulang,
+                ], 400);
+            }
+
+            // Process Tap Out
+            $attToday['time_out'] = $currentTime;
+            $attendances[$attendanceTodayKey] = $attToday;
+            JsonDatabase::saveAttendances($attendances);
+
+            Attendance::updateOrCreate(
+                ['id' => $attToday['id']],
+                ['time_out' => $currentTime]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Absen pulang berhasil dicatat!',
+                'data' => [
+                    'nama' => $user->name,
+                    'kelas' => $user->kelas,
+                    'tanggal' => $attToday['date'],
+                    'jam' => $currentTime,
+                    'status' => 'Pulang',
+                ],
+            ], 200);
+        }
+
+        if ($currentTimeCarbon->lt($minimalDatangCarbon)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Halo ' . $user->name . ', Anda sudah melakukan absensi hari ini.',
+                'message' => 'Belum waktunya absen. Absen dimulai jam '.$minimalDatang,
             ], 400);
         }
 
-        $currentTime = Carbon::now()->toTimeString();
+        $status = 'Hadir';
+        if ($currentTimeCarbon->gt($jamMasukCarbon)) {
+            $status = 'Terlambat';
+        }
+
         $newId = $attendances->max('id') ? $attendances->max('id') + 1 : 1;
         $newAttendance = [
-            'id'      => $newId,
+            'id' => $newId,
             'user_id' => $user->id,
-            'date'    => $today,
-            'time_in' => $currentTime, 
-            'status'  => 'Hadir',
+            'date' => $today,
+            'time_in' => $currentTime,
+            'time_out' => null,
+            'status' => $status,
         ];
 
         $attendances->push($newAttendance);
         JsonDatabase::saveAttendances($attendances);
 
-        \App\Models\Attendance::updateOrCreate(
+        Attendance::updateOrCreate(
             ['id' => $newId],
             [
                 'user_id' => $user->id,
-                'date'    => $today,
+                'date' => $today,
                 'time_in' => $currentTime,
-                'status'  => 'Hadir',
+                'time_out' => null,
+                'status' => $status,
             ]
         );
 
         $this->saveToJson($user->name, $request->uid, $today, $currentTime);
 
-        if (!empty($user->no_hp)) {
+        if (! empty($user->no_hp) && get_setting('auto_send_wa') == '1') {
             $this->kirimNotifikasiWA($user->no_hp, $user->name, $user->kelas, $currentTime);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Absen masuk berhasil dicatat!',
-            'data'    => [
-                'nama'    => $user->name,
-                'kelas'   => $user->kelas,
+            'data' => [
+                'nama' => $user->name,
+                'kelas' => $user->kelas,
                 'tanggal' => $newAttendance['date'],
-                'jam'     => $newAttendance['time_in'],
-                'status'  => $newAttendance['status'],
+                'jam' => $newAttendance['time_in'],
+                'status' => $newAttendance['status'],
             ],
-        ], 200); 
+        ], 200);
     }
 
-    private function saveToJson($name, $uid, $date, $time)
+    private function saveToJson(string $name, string $uid, string $date, string $time): void
     {
         $fileName = 'absensi_log.json';
         $newData = [
-            'nama'      => $name,
-            'uid'       => $uid,
-            'tanggal'   => $date,
-            'jam_masuk' => $time
+            'nama' => $name,
+            'uid' => $uid,
+            'tanggal' => $date,
+            'jam_masuk' => $time,
         ];
 
         if (Storage::disk('local')->exists($fileName)) {
@@ -199,18 +266,12 @@ class AttendanceController extends Controller
         Storage::disk('local')->put($fileName, json_encode($arrayData, JSON_PRETTY_PRINT));
     }
 
-  private function kirimNotifikasiWA($nomor, $nama,$kelas, $jam)
+    private function kirimNotifikasiWA(string $nomor, string $nama, string $kelas, string $jam): void
     {
-        $urlApi = 'http://127.0.0.1:3000/send-message';
-        
-        $pesan = "Yth. Bapak/Ibu Orang Tua/Wali dari Siswa {$kelas},\n \n";
-        $pesan .= "Kami menginfokan bahwa putra/putri Bapak/Ibu telah tiba di sekolah.\n \n";
-        $pesan .= "Detail Kehadiran: \n";
-        $pesan .= "Nama : {$nama}\n";
-        $pesan .= "Kelas : {$kelas}\n";
-        $pesan .= "Jam Masuk : {$jam}\n";
-        $pesan .= "Status : Hadir\n \n";
-        $pesan .= "Terima kasih atas perhatian Bapak/Ibu. Selamat beraktivitas dan semoga putra/putri mendapatkan kelancaran dalam belajar hari ini.";
+        $urlApi = rtrim(get_setting('wa_gateway_url'), '/').'/send-message';
+
+        $template = get_setting('template_wa_hadir');
+        $pesan = str_replace(['{nama}', '{kelas}', '{waktu}'], [$nama, $kelas, $jam], $template);
 
         $maxRetry = 3;
         $retryDelay = 2;
@@ -218,12 +279,13 @@ class AttendanceController extends Controller
         for ($attempt = 1; $attempt <= $maxRetry; $attempt++) {
             try {
                 $response = Http::timeout(10)->post($urlApi, [
-                    'number'  => $nomor,
-                    'message' => $pesan
+                    'number' => $nomor,
+                    'message' => $pesan,
                 ]);
 
                 if ($response->successful()) {
-                    logger("WhatsApp sukses dikirim untuk: {$nama}" . ($attempt > 1 ? " (percobaan ke-{$attempt})" : ""));
+                    logger("WhatsApp sukses dikirim untuk: {$nama}".($attempt > 1 ? " (percobaan ke-{$attempt})" : ''));
+
                     return;
                 }
 
@@ -232,14 +294,17 @@ class AttendanceController extends Controller
                     if ($attempt < $maxRetry) {
                         sleep($retryDelay);
                     }
+
                     continue;
                 }
 
-                logger("GAGAL kirim WA. Status: " . $response->status() . " | Body: " . $response->body());
+                logger('GAGAL kirim WA. Status: '.$response->status().' | Body: '.$response->body());
+
                 return;
 
             } catch (\Exception $e) {
-                logger("Koneksi ke Node.js GAGAL. Error: " . $e->getMessage());
+                logger('Koneksi ke Node.js GAGAL. Error: '.$e->getMessage());
+
                 return;
             }
         }
@@ -247,7 +312,7 @@ class AttendanceController extends Controller
         logger("WA gagal terkirim setelah {$maxRetry}x percobaan untuk: {$nama} (client belum siap)");
     }
 
-    public function autocomplete(Request $request)
+    public function autocomplete(Request $request): JsonResponse
     {
         $keyword = $request->query('keyword');
         $date = $request->query('date');
@@ -264,6 +329,7 @@ class AttendanceController extends Controller
                     $keywordLower = strtolower($keyword);
                     $nameMatch = $att->user && str_contains(strtolower($att->user->name), $keywordLower);
                     $uidMatch = $att->user && str_contains(strtolower($att->user->uid), $keywordLower);
+
                     return $nameMatch || $uidMatch;
                 });
             })
@@ -275,40 +341,40 @@ class AttendanceController extends Controller
             ->sort(function ($a, $b) {
                 return strcmp($b->date, $a->date);
             })
-            ->take(10) 
+            ->take(10)
             ->values();
 
         $results = $results->map(function ($attendance) {
             return [
-                'id'              => $attendance->id,
-                'uid'             => $attendance->user->uid ?? '-',
-                'name'            => $attendance->user->name ?? 'User Terhapus',
-                'email'           => $attendance->user->email ?? '-',
-                'kelas'           => $attendance->user->kelas ?? '-',
-                'date'            => $attendance->date,
-                'date_formatted'  => \Carbon\Carbon::parse($attendance->date)->translatedFormat('d F Y'),
-                'time_in'         => $attendance->time_in,
-                'status'          => $attendance->status ?? 'Hadir',
+                'id' => $attendance->id,
+                'uid' => $attendance->user->uid ?? '-',
+                'name' => $attendance->user->name ?? 'User Terhapus',
+                'email' => $attendance->user->email ?? '-',
+                'kelas' => $attendance->user->kelas ?? '-',
+                'date' => $attendance->date,
+                'date_formatted' => Carbon::parse($attendance->date)->translatedFormat('d F Y'),
+                'time_in' => $attendance->time_in,
+                'status' => $attendance->status ?? 'Hadir',
             ];
         });
 
         return response()->json($results);
     }
 
-    public function show($id)
+    public function show(int|string $id): View
     {
         $attendance = $this->getMappedAttendances()->firstWhere('id', $id);
 
-        if (!$attendance) {
+        if (! $attendance) {
             abort(404);
         }
 
         return view('attendances.show', compact('attendance'));
     }
 
-    public function destroy($id)
+    public function destroy(int|string $id): RedirectResponse
     {
-        \App\Models\Attendance::where('id', $id)->delete();
+        Attendance::where('id', $id)->delete();
 
         $attendances = JsonDatabase::getAttendances();
         $attendances = $attendances->reject(function ($att) use ($id) {
@@ -318,7 +384,8 @@ class AttendanceController extends Controller
 
         return redirect()->route('attendances.index')->with('success', 'Data absensi berhasil dihapus.');
     }
-    public function getAllData(Request $request)
+
+    public function getAllData(Request $request): JsonResponse
     {
         $attendances = $this->getMappedAttendances();
 
@@ -335,18 +402,18 @@ class AttendanceController extends Controller
         }
 
         $attendances = $attendances->sortBy(function ($att) {
-            return $att->date . ' ' . ($att->user->name ?? '');
+            return $att->date.' '.($att->user->name ?? '');
         })->values();
 
         $result = $attendances->map(function ($att) {
             return [
-                'id'      => $att->id,
-                'date'    => $att->date,
+                'id' => $att->id,
+                'date' => $att->date,
                 'time_in' => $att->time_in,
-                'status'  => $att->status,
-                'user'    => [
-                    'name'  => $att->user->name ?? 'User Terhapus',
-                    'uid'   => $att->user->uid ?? '-',
+                'status' => $att->status,
+                'user' => [
+                    'name' => $att->user->name ?? 'User Terhapus',
+                    'uid' => $att->user->uid ?? '-',
                     'kelas' => $att->user->kelas ?? '-',
                 ],
             ];

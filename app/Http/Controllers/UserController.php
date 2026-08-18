@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\JsonDatabase;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -11,7 +14,7 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): View
     {
         $search = $request->input('search');
         $role = $request->input('role');
@@ -20,9 +23,9 @@ class UserController extends Controller
         $users = User::query()
             ->when($search, function ($query, $search) {
                 return $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', '%' . $search . '%')
-                      ->orWhere('email', 'like', '%' . $search . '%')
-                      ->orWhere('uid', 'like', '%' . $search . '%');
+                    $q->where('name', 'like', '%'.$search.'%')
+                        ->orWhere('email', 'like', '%'.$search.'%')
+                        ->orWhere('uid', 'like', '%'.$search.'%');
                 });
             })
             ->when($role && $role !== 'all', function ($query) use ($role) {
@@ -43,32 +46,32 @@ class UserController extends Controller
         return view('users.index', compact('users', 'search', 'role', 'kelas', 'availableClasses'));
     }
 
-    public function create()
+    public function create(): View
     {
         return view('users.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name'        => 'required|string|max:255',
-            'email'       => 'required|string|email|max:255|unique:users,email',
-            'password'    => 'required|string|min:6',
-            'uid'         => 'required|string|max:50|unique:users,uid',
-            'role'        => 'required|in:admin,user',
-            'kelas'       => 'nullable|string|max:50',
-            'no_hp'       => 'nullable|string|max:15',
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email',
+            'password' => 'required|string|min:6',
+            'uid' => 'required|string|max:50|unique:users,uid',
+            'role' => 'required|in:admin,user',
+            'kelas' => 'nullable|string|max:50',
+            'no_hp' => 'nullable|string|max:15',
             'rfid_status' => 'required|in:active,inactive',
         ]);
 
         User::create([
-            'name'        => $request->name,
-            'email'       => $request->email,
-            'password'    => Hash::make($request->password),
-            'uid'         => $request->uid,
-            'role'        => $request->role,
-            'kelas'       => $request->role === 'admin' ? null : $request->kelas,
-            'no_hp'       => $request->no_hp,
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'uid' => $request->uid,
+            'role' => $request->role,
+            'kelas' => $request->role === 'admin' ? null : $request->kelas,
+            'no_hp' => $request->no_hp,
             'rfid_status' => $request->rfid_status,
         ]);
 
@@ -77,34 +80,35 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'User berhasil ditambahkan!');
     }
 
-    public function edit($id)
+    public function edit(int|string $id): View
     {
         $user = User::findOrFail($id);
+
         return view('users.edit', compact('user'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, int|string $id): RedirectResponse
     {
         $user = User::findOrFail($id);
 
         $request->validate([
-            'name'        => 'required|string|max:255',
-            'email'       => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'password'    => 'nullable|string|min:6',
-            'uid'         => ['required', 'string', 'max:50', Rule::unique('users')->ignore($user->id)],
-            'role'        => 'required|in:admin,user',
-            'kelas'       => 'nullable|string|max:50',
-            'no_hp'       => 'nullable|string|max:15',
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'password' => 'nullable|string|min:6',
+            'uid' => ['required', 'string', 'max:50', Rule::unique('users')->ignore($user->id)],
+            'role' => 'required|in:admin,user',
+            'kelas' => 'nullable|string|max:50',
+            'no_hp' => 'nullable|string|max:15',
             'rfid_status' => 'required|in:active,inactive',
         ]);
 
         $userData = [
-            'name'        => $request->name,
-            'email'       => $request->email,
-            'uid'         => $request->uid,
-            'role'        => $request->role,
-            'kelas'       => $request->role === 'admin' ? null : $request->kelas,
-            'no_hp'       => $request->no_hp,
+            'name' => $request->name,
+            'email' => $request->email,
+            'uid' => $request->uid,
+            'role' => $request->role,
+            'kelas' => $request->role === 'admin' ? null : $request->kelas,
+            'no_hp' => $request->no_hp,
             'rfid_status' => $request->rfid_status,
         ];
 
@@ -119,7 +123,7 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'User berhasil diperbarui!');
     }
 
-    public function updateStatus(Request $request, $id)
+    public function updateStatus(Request $request, int|string $id): JsonResponse
     {
         $user = User::findOrFail($id);
 
@@ -139,7 +143,7 @@ class UserController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(int|string $id): RedirectResponse
     {
         $user = User::findOrFail($id);
 
@@ -154,7 +158,7 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'User berhasil dihapus!');
     }
 
-    public function autocomplete(Request $request)
+    public function autocomplete(Request $request): JsonResponse
     {
         $keyword = $request->query('keyword');
         $angkatan = $request->query('angkatan');
@@ -166,9 +170,9 @@ class UserController extends Controller
 
         if ($keyword) {
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', '%' . $keyword . '%')
-                  ->orWhere('email', 'like', '%' . $keyword . '%')
-                  ->orWhere('uid', 'like', '%' . $keyword . '%');
+                $q->where('name', 'like', '%'.$keyword.'%')
+                    ->orWhere('email', 'like', '%'.$keyword.'%')
+                    ->orWhere('uid', 'like', '%'.$keyword.'%');
             });
         }
 
@@ -177,15 +181,15 @@ class UserController extends Controller
         }
 
         if ($angkatan && $angkatan !== 'all') {
-            $query->where('kelas', 'like', $angkatan . '-%');
+            $query->where('kelas', 'like', $angkatan.'-%');
         }
 
         if ($jurusan && $jurusan !== 'all') {
-            $query->where('kelas', 'like', '%-' . $jurusan . ' %');
+            $query->where('kelas', 'like', '%-'.$jurusan.' %');
         }
 
         if ($kelas) {
-            $query->where('kelas', 'like', '%' . $kelas . '%');
+            $query->where('kelas', 'like', '%'.$kelas.'%');
         }
 
         $users = $query->orderBy('name', 'asc')->take(50)->get();
@@ -193,4 +197,3 @@ class UserController extends Controller
         return response()->json($users);
     }
 }
-

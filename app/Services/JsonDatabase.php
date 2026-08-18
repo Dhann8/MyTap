@@ -2,13 +2,16 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Hash;
+use App\Models\Attendance;
+use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class JsonDatabase
 {
     protected static $usersFile = 'users.json';
+
     protected static $attendancesFile = 'attendances.json';
 
     /**
@@ -17,7 +20,7 @@ class JsonDatabase
      */
     public static function getUsers(): Collection
     {
-        if (!Storage::disk('local')->exists(self::$usersFile)) {
+        if (! Storage::disk('local')->exists(self::$usersFile)) {
             self::seedUsers();
         }
 
@@ -44,7 +47,7 @@ class JsonDatabase
      */
     public static function getAttendances(): Collection
     {
-        if (!Storage::disk('local')->exists(self::$attendancesFile)) {
+        if (! Storage::disk('local')->exists(self::$attendancesFile)) {
             self::seedAttendances();
         }
 
@@ -74,19 +77,19 @@ class JsonDatabase
     protected static function seedUsers(): void
     {
         // Ambil data user dari database SQLite jika ada
-        $dbUsers = \App\Models\User::all();
+        $dbUsers = User::all();
         $defaultUsers = [];
 
         foreach ($dbUsers as $dbUser) {
             $defaultUsers[] = [
-                'id'          => $dbUser->id,
-                'name'        => $dbUser->name,
-                'email'       => $dbUser->email,
-                'password'    => $dbUser->password, // Pertahankan password hash
-                'uid'         => $dbUser->uid,
-                'role'        => $dbUser->role,
-                'kelas'       => $dbUser->kelas,
-                'no_hp'       => $dbUser->no_hp,
+                'id' => $dbUser->id,
+                'name' => $dbUser->name,
+                'email' => $dbUser->email,
+                'password' => $dbUser->password, // Pertahankan password hash
+                'uid' => $dbUser->uid,
+                'role' => $dbUser->role,
+                'kelas' => $dbUser->kelas,
+                'no_hp' => $dbUser->no_hp,
                 'rfid_status' => $dbUser->rfid_status ?? 'active',
             ];
         }
@@ -94,30 +97,30 @@ class JsonDatabase
         // Jika database kosong, buat user default Admin saja
         if (empty($defaultUsers)) {
             $adminUser = [
-                'id'          => 1,
-                'name'        => 'Admin',
-                'email'       => 'admin@gmail.com',
-                'password'    => Hash::make('admin123'),
-                'uid'         => 'Admin',
-                'role'        => 'admin',
-                'kelas'       => null,
-                'no_hp'       => null,
+                'id' => 1,
+                'name' => 'Admin',
+                'email' => 'admin@gmail.com',
+                'password' => Hash::make('admin123'),
+                'uid' => 'Admin',
+                'role' => 'admin',
+                'kelas' => null,
+                'no_hp' => null,
                 'rfid_status' => 'active',
             ];
-            
+
             $defaultUsers[] = $adminUser;
 
             // Sinkronisasi data admin ke SQLite database
-            \App\Models\User::updateOrCreate(
+            User::updateOrCreate(
                 ['email' => $adminUser['email']],
                 [
-                    'id'          => $adminUser['id'],
-                    'name'        => $adminUser['name'],
-                    'password'    => $adminUser['password'],
-                    'uid'         => $adminUser['uid'],
-                    'role'        => $adminUser['role'],
-                    'kelas'       => $adminUser['kelas'],
-                    'no_hp'       => $adminUser['no_hp'],
+                    'id' => $adminUser['id'],
+                    'name' => $adminUser['name'],
+                    'password' => $adminUser['password'],
+                    'uid' => $adminUser['uid'],
+                    'role' => $adminUser['role'],
+                    'kelas' => $adminUser['kelas'],
+                    'no_hp' => $adminUser['no_hp'],
                     'rfid_status' => $adminUser['rfid_status'],
                 ]
             );
@@ -137,14 +140,14 @@ class JsonDatabase
         $attendances = [];
 
         // Ambil data absensi yang sudah ada di database SQLite
-        $dbAttendances = \App\Models\Attendance::all();
+        $dbAttendances = Attendance::all();
         foreach ($dbAttendances as $dbAtt) {
             $attendances[] = [
-                'id'      => $dbAtt->id,
+                'id' => $dbAtt->id,
                 'user_id' => $dbAtt->user_id,
-                'date'    => $dbAtt->date,
+                'date' => $dbAtt->date,
                 'time_in' => $dbAtt->time_in,
-                'status'  => $dbAtt->status,
+                'status' => $dbAtt->status,
             ];
         }
 
@@ -159,16 +162,16 @@ class JsonDatabase
      */
     public static function syncFromDatabase(): void
     {
-        $users = \App\Models\User::all()->map(function($user) {
+        $users = User::all()->map(function ($user) {
             return [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'password'    => $user->password,
-                'uid'         => $user->uid,
-                'role'        => $user->role,
-                'kelas'       => $user->kelas,
-                'no_hp'       => $user->no_hp,
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'password' => $user->password,
+                'uid' => $user->uid,
+                'role' => $user->role,
+                'kelas' => $user->kelas,
+                'no_hp' => $user->no_hp,
                 'rfid_status' => $user->rfid_status ?? 'active',
             ];
         })->values();
@@ -184,13 +187,13 @@ class JsonDatabase
      */
     public static function syncAttendancesFromDatabase(): void
     {
-        $attendances = \App\Models\Attendance::all()->map(function($att) {
+        $attendances = Attendance::all()->map(function ($att) {
             return [
-                'id'      => $att->id,
+                'id' => $att->id,
                 'user_id' => $att->user_id,
-                'date'    => $att->date,
+                'date' => $att->date,
                 'time_in' => $att->time_in,
-                'status'  => $att->status,
+                'status' => $att->status,
             ];
         })->values();
 

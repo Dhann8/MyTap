@@ -5,19 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\JsonDatabase;
 use Carbon\Carbon;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-   
-    public function dashboard()
+    public function dashboard(): View
     {
         $allUsers = JsonDatabase::getUsers()->where('role', 'user')->whereNotNull('uid');
         $totalSiswa = $allUsers->count();
-        
-        $rfidAktif     = $allUsers->where('rfid_status', 'active')->count();
+
+        $rfidAktif = $allUsers->where('rfid_status', 'active')->count();
         $rfidTidakAktif = $allUsers->where('rfid_status', '!=', 'active')->count();
 
         $todayStr = Carbon::today()->toDateString();
@@ -39,7 +40,7 @@ class AuthController extends Controller
         $classDailyData = [];
         foreach ($classes as $cls) {
             $classUsers = $users->where('kelas', $cls)->pluck('id')->all();
-            
+
             $dailyCounts = [];
             foreach ($dates as $d) {
                 $count = $attendances->where('date', $d)
@@ -55,31 +56,31 @@ class AuthController extends Controller
             $classUsers = $users->where('kelas', $cls)->sortBy(function ($usr) {
                 return strtolower($usr['name']);
             });
-            
+
             $studentsList = [];
             foreach ($classUsers as $usr) {
                 $userAtts = $attendances->where('user_id', $usr['id']);
-                
+
                 $hadir = $userAtts->where('status', 'Hadir')->count();
                 $sakit = $userAtts->where('status', 'Sakit')->count();
                 $izin = $userAtts->where('status', 'Izin')->count();
                 $alpa = $userAtts->where('status', 'Alpa')->count();
-                
+
                 $studentsList[] = [
-                    'name'  => $usr['name'],
+                    'name' => $usr['name'],
                     'hadir' => $hadir,
                     'sakit' => $sakit,
-                    'izin'  => $izin,
-                    'alpa'  => $alpa,
+                    'izin' => $izin,
+                    'alpa' => $alpa,
                 ];
             }
             $studentMonthlyData[$cls] = $studentsList;
         }
 
         return view('dashboard.index', compact(
-            'totalSiswa', 
-            'hadirHariIni', 
-            'tidakHadir', 
+            'totalSiswa',
+            'hadirHariIni',
+            'tidakHadir',
             'persenKehadiran',
             'rfidAktif',
             'rfidTidakAktif',
@@ -90,15 +91,15 @@ class AuthController extends Controller
         ));
     }
 
-    public function showLogin()
+    public function showLogin(): View
     {
         return view('auth.login');
     }
 
-    public function login(Request $request)
+    public function login(Request $request): RedirectResponse
     {
         $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required|string',
         ]);
         $jsonUser = JsonDatabase::getUsers()->firstWhere('email', $request->email);
@@ -107,10 +108,10 @@ class AuthController extends Controller
             $dbUser = User::updateOrCreate(
                 ['email' => $jsonUser['email']],
                 [
-                    'name'     => $jsonUser['name'],
+                    'name' => $jsonUser['name'],
                     'password' => $jsonUser['password'],
-                    'uid'      => $jsonUser['uid'],
-                    'role'     => $jsonUser['role'],
+                    'uid' => $jsonUser['uid'],
+                    'role' => $jsonUser['role'],
                 ]
             );
 
@@ -118,7 +119,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
 
             return redirect()->route('dashboard.index')
-                             ->with('success', 'Selamat datang kembali!');
+                ->with('success', 'Selamat datang kembali!');
         }
 
         return back()->withErrors([
@@ -126,7 +127,7 @@ class AuthController extends Controller
         ])->onlyInput('email');
     }
 
-    public function logout(Request $request)
+    public function logout(Request $request): RedirectResponse
     {
         Auth::logout();
         $request->session()->invalidate();

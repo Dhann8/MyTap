@@ -3,7 +3,7 @@
 
     <div class="flex items-center gap-3">
         <span class="inline-flex items-center gap-1.5 px-3 py-1 text-2xl font-bold text-gray-900">
-            Dashboard Absensi
+            {{ get_setting('app_name', 'Dashboard Absensi') }}
         </span>
     </div>
 </header>

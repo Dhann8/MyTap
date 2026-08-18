@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WaServerController;
 use Illuminate\Support\Facades\Route;
 
 // Guest Routes (Authentication)
@@ -27,7 +29,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/{id}', 'show')->name('show');
         Route::delete('/{id}', 'destroy')->name('destroy');
     });
-    
+
     // Manajemen Data Users
     Route::prefix('users')->name('users.')->controller(UserController::class)->group(function () {
         Route::get('/', 'index')->name('index');
@@ -38,6 +40,22 @@ Route::middleware('auth')->group(function () {
         Route::put('/{id}', 'update')->name('update');
         Route::patch('/{id}/status', 'updateStatus')->name('update-status');
         Route::delete('/{id}', 'destroy')->name('destroy');
+    });
+
+    // Dashboard WA
+    Route::prefix('wa')->name('wa.')->controller(WaServerController::class)->group(function () {
+        Route::get('/', 'index')->name('dashboard');
+        Route::post('/update-delay', 'updateDelay')->name('update-delay');
+        Route::get('/status-json', 'statusJson')->name('status-json');
+    });
+
+    // Settings
+    Route::prefix('settings')->name('settings.')->controller(SettingController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/update', 'update')->name('update');
+        Route::get('/update', function () {
+            return redirect()->route('settings.index');
+        });
     });
 
     // Logout

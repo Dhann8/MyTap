@@ -26,11 +26,12 @@ class ScanRfidRequest extends FormRequest
             'uid' => ['required', 'string', 'max:255'],
         ];
     }
+
     public function messages(): array
     {
         return [
             'uid.required' => 'UID kartu RFID wajib diisi.',
-            'uid.string'   => 'UID kartu RFID harus berupa teks.',
+            'uid.string' => 'UID kartu RFID harus berupa teks.',
         ];
     }
 }

@@ -122,7 +122,7 @@
                                 <h3 class="text-sm font-bold text-gray-900">Diagram Kehadiran Bulanan</h3>
                                 <p class="text-xs text-gray-400 mt-0.5">Tren kehadiran 30 hari terakhir</p>
                             </div>
-                            
+
                             <div class="relative flex items-center max-w-xs">
                                 <select id="class-chart-filter" onchange="updateChartFilter(this.value)"
                                     class="pl-3 pr-8 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm appearance-none cursor-pointer">
@@ -132,55 +132,100 @@
                                     @endforeach
                                 </select>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                    stroke="currentColor" class="size-4 absolute right-2.5 text-gray-400 pointer-events-none">
+                                    stroke="currentColor"
+                                    class="size-4 absolute right-2.5 text-gray-400 pointer-events-none">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                                 </svg>
                             </div>
                         </div>
                         <div class="p-6">
                             <div class="relative w-full h-80" id="chart-wrapper">
-                                <div id="chart-loader" class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center transition-all duration-300 opacity-0 pointer-events-none z-10">
+                                <div id="chart-loader"
+                                    class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center transition-all duration-300 opacity-0 pointer-events-none z-10">
                                     <div class="flex flex-col items-center gap-2">
                                         <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600"></i>
-                                        <span class="text-xs text-gray-500 font-semibold tracking-wide">Memuat grafik...</span>
+                                        <span class="text-xs text-gray-500 font-semibold tracking-wide">Memuat
+                                            grafik...</span>
                                     </div>
                                 </div>
                                 <canvas id="attendanceChart"></canvas>
                             </div>
                             <div class="relative min-h-[150px] mt-6 border-t border-gray-100 pt-6">
-                                <div id="summary-loader" class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center transition-all duration-300 opacity-0 pointer-events-none z-10">
+                                <div id="summary-loader"
+                                    class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center transition-all duration-300 opacity-0 pointer-events-none z-10">
                                     <div class="flex flex-col items-center gap-2">
                                         <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600"></i>
-                                        <span class="text-xs text-gray-500 font-semibold tracking-wide">Memuat data tabel...</span>
+                                        <span class="text-xs text-gray-500 font-semibold tracking-wide">Memuat data
+                                            tabel...</span>
                                     </div>
                                 </div>
                                 <div id="chartSummaryContainer">
-                                    <!-- Ringkasan berupa tabel/teks akan disisipkan di sini oleh JavaScript secara dinamis -->
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-100">
-                            <h3 class="text-sm font-bold text-gray-900">Informasi Sistem</h3>
-                            <p class="text-xs text-gray-400 mt-0.5">Status perangkat</p>
+                        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 class="text-sm font-bold text-gray-900">Status Sistem Absensi</h3>
+                                <p class="text-xs text-gray-400 mt-0.5">Indikator ketersediaan layanan</p>
+                            </div>
                         </div>
+
                         <div class="p-6 space-y-4">
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-500">Koneksi ESP32</span>
-                                <span class="flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse"></span>
-                                    Online
-                                </span>
+                            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 {{ ($data['isReady'] ?? false) ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600' }} rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-400">WhatsApp Gateway</p>
+                                        <p class="text-sm font-semibold text-gray-800">
+                                            @if($data['isReady'] ?? false)
+                                                <span class="text-green-600">Online</span> & Siap
+                                            @else
+                                                <span class="text-red-600">Offline</span> / Terputus
+                                            @endif
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-500">Database JSON</span>
-                                <span class="text-xs font-medium text-gray-600 bg-gray-50 px-2.5 py-0.5 rounded-full">Aktif</span>
+                            
+                            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-400">Perangkat Scan RFID</p>
+                                        <p class="text-sm font-semibold text-green-600">Standby & Aktif</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-500">Waktu Server</span>
-                                <span class="text-xs text-gray-600 font-medium">{{ now()->format('H:i:s') }}</span>
+
+                            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-400">Server Aplikasi</p>
+                                        <p class="text-sm font-semibold text-green-600">Berjalan Normal</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between pb-1">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-400">Koneksi Database</p>
+                                        <p class="text-sm font-semibold text-green-600">Terhubung</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -189,249 +234,15 @@
         </main>
     </div>
 
-    <!-- Script Chart.js & Logika Diagram -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const dates = @json($dates);
-            const classes = @json($classes);
-            const classDailyData = @json($classDailyData);
-            const studentMonthlyData = @json($studentMonthlyData);
-
-            const ctx = document.getElementById('attendanceChart').getContext('2d');
-            let attendanceChart;
-
-            // Memformat format tanggal label (misal: "30 Jun")
-            const formatDates = dates.map(dateStr => {
-                const d = new Date(dateStr);
-                return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-            });
-
-            window.updateChartFilter = function(filterValue) {
-                const chartLoader = document.getElementById('chart-loader');
-                const summaryLoader = document.getElementById('summary-loader');
-                
-                if (chartLoader) {
-                    chartLoader.classList.remove('opacity-0', 'pointer-events-none');
-                    chartLoader.classList.add('opacity-100', 'pointer-events-auto');
-                }
-                if (summaryLoader) {
-                    summaryLoader.classList.remove('opacity-0', 'pointer-events-none');
-                    summaryLoader.classList.add('opacity-100', 'pointer-events-auto');
-                }
-
-                setTimeout(() => {
-                    if (attendanceChart) {
-                        attendanceChart.destroy();
-                    }
-
-                    let chartType = 'line';
-                    let labels = [];
-                    let datasets = [];
-
-                    if (filterValue === 'all') {
-                        chartType = 'line';
-                        labels = formatDates;
-
-                        const colors = [
-                            { border: '#3b82f6', bg: 'rgba(59, 130, 246, 0.05)' }, // Blue
-                            { border: '#10b981', bg: 'rgba(16, 185, 129, 0.05)' }, // Emerald
-                            { border: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.05)' }, // Violet
-                            { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.05)' }  // Amber
-                        ];
-
-                        classes.forEach((cls, idx) => {
-                            const color = colors[idx % colors.length];
-                            datasets.push({
-                                label: cls,
-                                data: classDailyData[cls] || [],
-                                borderColor: color.border,
-                                backgroundColor: color.bg,
-                                borderWidth: 2.5,
-                                tension: 0.35,
-                                fill: true,
-                                pointBackgroundColor: color.border,
-                                pointHoverRadius: 6,
-                                pointRadius: 2
-                            });
-                        });
-                    } else {
-                        chartType = 'bar';
-                        const students = studentMonthlyData[filterValue] || [];
-                        labels = students.map(s => s.name);
-
-                        datasets.push({
-                            label: 'Total Kehadiran (Hari)',
-                            data: students.map(s => s.hadir),
-                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
-                            borderColor: '#3b82f6',
-                            borderWidth: 1.5,
-                            borderRadius: 6,
-                            barPercentage: 0.5
-                        });
-                    }
-
-                    attendanceChart = new Chart(ctx, {
-                        type: chartType,
-                        data: {
-                            labels: labels,
-                            datasets: datasets
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    position: 'top',
-                                    labels: {
-                                        font: { family: 'Inter, sans-serif', size: 11, weight: '500' },
-                                        color: '#4b5563'
-                                    }
-                                },
-                                tooltip: {
-                                    padding: 12,
-                                    backgroundColor: 'rgba(17, 24, 39, 0.9)',
-                                    titleFont: { family: 'Inter, sans-serif', size: 12, weight: '600' },
-                                    bodyFont: { family: 'Inter, sans-serif', size: 12 },
-                                    cornerRadius: 8
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    max: filterValue === 'all' ? undefined : 30, // Max 30 hari untuk absensi siswa
-                                    ticks: {
-                                        stepSize: filterValue === 'all' ? 1 : 5,
-                                        color: '#9ca3af',
-                                        font: { family: 'Inter, sans-serif', size: 10 }
-                                    },
-                                    grid: {
-                                        color: '#f3f4f6'
-                                    }
-                                },
-                                x: {
-                                    ticks: {
-                                        color: '#9ca3af',
-                                        font: { family: 'Inter, sans-serif', size: 10 }
-                                    },
-                                    grid: {
-                                        display: false
-                                    }
-                                }
-                            }
-                        }
-                    });
-
-                    // Perbarui Ringkasan berupa Tabel secara Dinamis
-                    const summaryContainer = document.getElementById('chartSummaryContainer');
-                    let summaryHtml = '';
-
-                    // Hitung jumlah hari sekolah (exclude Sabtu & Minggu) dalam 30 hari terakhir
-                    const schoolDaysCount = dates.filter(dateStr => {
-                        const d = new Date(dateStr);
-                        return d.getDay() !== 0 && d.getDay() !== 6;
-                    }).length;
-
-                    if (filterValue === 'all') {
-                        summaryHtml = `
-                            <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Ringkasan Kehadiran Per Kelas</h4>
-                            <div class="overflow-x-auto rounded-lg border border-gray-100">
-                                <table class="w-full text-sm text-left text-gray-500">
-                                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                                        <tr>
-                                            <th scope="col" class="px-4 py-3">Nama Kelas</th>
-                                            <th scope="col" class="px-4 py-3 text-center">Jumlah Siswa</th>
-                                            <th scope="col" class="px-4 py-3 text-center">Total Kehadiran</th>
-                                            <th scope="col" class="px-4 py-3 class text-center">Rata-rata Kehadiran Harian</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-100">
-                        `;
-
-                        classes.forEach(cls => {
-                            const dailyData = classDailyData[cls] || [];
-                            const totalPresent = dailyData.reduce((sum, val) => sum + val, 0);
-                            const studentsCount = studentMonthlyData[cls] ? studentMonthlyData[cls].length : 0;
-                            const dailyAvg = schoolDaysCount > 0 ? (totalPresent / schoolDaysCount).toFixed(1) : 0;
-
-                            summaryHtml += `
-                                <tr class="bg-white hover:bg-gray-50 transition-colors duration-150">
-                                    <td class="px-4 py-3 font-semibold text-gray-900">${cls}</td>
-                                    <td class="px-4 py-3 text-center">${studentsCount} siswa</td>
-                                    <td class="px-4 py-3 text-center font-medium text-blue-600">${totalPresent} kali tap</td>
-                                    <td class="px-4 py-3 text-center text-green-600 font-semibold">${dailyAvg} siswa/hari</td>
-                                </tr>
-                            `;
-                        });
-
-                        summaryHtml += `
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
-                    } else {
-                        summaryHtml = `
-                            <div class="flex flex-col md:flex-row md:items-center justify-between mb-3 gap-2">
-                                <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Rincian Siswa Kelas ${filterValue}</h4>
-                                <span class="text-xs text-gray-400 font-medium">Berdasarkan data 30 hari terakhir (terdapat ${schoolDaysCount} hari sekolah)</span>
-                            </div>
-                            <div class="overflow-x-auto rounded-lg border border-gray-100">
-                                <table class="w-full text-sm text-left text-gray-500">
-                                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                                        <tr>
-                                            <th scope="col" class="px-4 py-3">Nama Siswa</th>
-                                            <th scope="col" class="px-4 py-3 text-center text-green-600">Hadir</th>
-                                            <th scope="col" class="px-4 py-3 text-center text-yellow-600">Sakit</th>
-                                            <th scope="col" class="px-4 py-3 text-center text-blue-600">Izin</th>
-                                            <th scope="col" class="px-4 py-3 text-center text-red-600">Alpa</th>
-                                            <th scope="col" class="px-4 py-3 text-center">Persentase Kehadiran</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-100">
-                        `;
-
-                        const students = studentMonthlyData[filterValue] || [];
-                        students.forEach(s => {
-                            const presenceRate = schoolDaysCount > 0 ? Math.round((s.hadir / schoolDaysCount) * 100) : 0;
-                            let rateColor = 'text-red-600 bg-red-50';
-                            if (presenceRate >= 85) rateColor = 'text-green-600 bg-green-50';
-                            else if (presenceRate >= 75) rateColor = 'text-yellow-600 bg-yellow-50';
-
-                            summaryHtml += `
-                                <tr class="bg-white hover:bg-gray-50 transition-colors duration-150">
-                                    <td class="px-4 py-3 font-semibold text-gray-900">${s.name}</td>
-                                    <td class="px-4 py-3 text-center text-green-600 font-semibold">${s.hadir} hari</td>
-                                    <td class="px-4 py-3 text-center text-yellow-600 font-semibold">${s.sakit} hari</td>
-                                    <td class="px-4 py-3 text-center text-blue-600 font-semibold">${s.izin} hari</td>
-                                    <td class="px-4 py-3 text-center text-red-600 font-semibold">${s.alpa} hari</td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="px-2 py-0.5 rounded-full text-xs font-bold ${rateColor}">${presenceRate}%</span>
-                                    </td>
-                                </tr>
-                            `;
-                        });
-
-                        summaryHtml += `
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
-                    }
-
-                    summaryContainer.innerHTML = summaryHtml;
-
-                    if (chartLoader) {
-                        chartLoader.classList.remove('opacity-100', 'pointer-events-auto');
-                        chartLoader.classList.add('opacity-0', 'pointer-events-none');
-                    }
-                    if (summaryLoader) {
-                        summaryLoader.classList.remove('opacity-100', 'pointer-events-auto');
-                        summaryLoader.classList.add('opacity-0', 'pointer-events-none');
-                    }
-                }, 400);
-            };
-
-            updateChartFilter('all');
-        });
-    </script>
+    window.dashboardData = {
+        dates: @json($dates),
+        classes: @json($classes),
+        classDailyData: @json($classDailyData),
+        studentMonthlyData: @json($studentMonthlyData)
+    };
+    window.waStatusUrl = "{{ route('wa.status-json') }}";
+</script>
+    <script src="{{ asset('js/Dashbord.js') }}"></script>
 @endsection
