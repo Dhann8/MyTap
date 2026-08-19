@@ -1,15 +1,7 @@
 {
-  "packages": {
-    "apt": [
-      "libpng-dev",
-      "libjpeg-dev",
-      "libfreetype6-dev"
-    ]
-  },
-  "php": {
-    "extensions": [
-      "gd",
-      "pdo_mysql"
-    ]
+  "$schema": "https://schema.railpack.com",
+  "buildAptPackages": ["...", "libpng-dev", "libjpeg-dev", "libfreetype6-dev"],
+  "deploy": {
+    "aptPackages": ["...", "libpng-dev", "libjpeg-dev", "libfreetype6-dev"]
   }
 }
