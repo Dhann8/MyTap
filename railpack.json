@@ -1,7 +1,20 @@
 {
   "$schema": "https://schema.railpack.com",
-  "buildAptPackages": ["...", "libpng-dev", "libjpeg-dev", "libfreetype6-dev"],
+  "buildAptPackages": [
+    "ca-certificates",
+    "git",
+    "unzip",
+    "zip",
+    "libpng-dev",
+    "libjpeg-dev",
+    "libfreetype6-dev"
+  ],
   "deploy": {
-    "aptPackages": ["...", "libpng-dev", "libjpeg-dev", "libfreetype6-dev"]
+    "aptPackages": [
+      "ca-certificates",
+      "libpng-dev",
+      "libjpeg-dev",
+      "libfreetype6-dev"
+    ]
   }
 }
