@@ -1,0 +1,6 @@
+{
+  "$schema": "https://railpack.com/config.v1.schema.json",
+  "phpextensions": [
+    "gd"
+  ]
+}
