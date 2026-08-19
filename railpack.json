@@ -1,13 +1,15 @@
 {
-  "$schema": "https://railpack.com/config.v1.schema.json",
+  "packages": {
+    "apt": [
+      "libpng-dev",
+      "libjpeg-dev",
+      "libfreetype6-dev"
+    ]
+  },
   "php": {
     "extensions": [
       "gd",
-      "pdo_mysql",
-      "mbstring",
-      "xml",
-      "ctype",
-      "curl"
+      "pdo_mysql"
     ]
   }
 }
