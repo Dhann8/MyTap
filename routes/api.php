@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Storage;
 Route::controller(AttendanceController::class)->group(function () {
     Route::match(['get', 'post'], '/scan-rfid', 'scanRfid');
     Route::get('/attendance/autocomplete', 'autocomplete');
+    Route::get('/display/latest', 'displayLatestApi');
+
     Route::post('/attendance/check-late', function (Request $request) {
         $force = $request->boolean('force', true);
         $waUrl = rtrim(get_setting('wa_gateway_url', 'http://localhost:3000'), '/');
@@ -51,13 +53,11 @@ Route::prefix('json')->group(function () {
             $wifiSsid = Setting::getByKey('wifi_ssid', 'Nama_WiFi_Default');
             $wifiPass = Setting::getByKey('wifi_password', 'Password_WiFi_Default');
         } catch (\Throwable $e) {
-            // Fallback jika query database error
             $ip = '10.117.3.92:8000';
             $wifiSsid = 'Nama_WiFi_Default';
             $wifiPass = 'Password_WiFi_Default';
         }
         
-        // Memastikan format URL menyertakan http://
         $serverUrl = str_starts_with($ip, 'http') ? $ip : 'http://' . $ip;
 
         return response()->json([
@@ -78,10 +78,8 @@ Route::prefix('json')->group(function () {
             'server_ip'     => ['required', 'string', 'max:50'],
         ]);
 
-        // Hapus semua data WiFi lama terlebih dahulu
         Setting::whereIn('key', $wifiKeys)->delete();
 
-        // Insert data baru
         foreach ($validated as $key => $value) {
             Setting::create(['key' => $key, 'value' => $value]);
         }

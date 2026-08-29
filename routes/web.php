@@ -16,6 +16,9 @@ Route::middleware('guest')->controller(AuthController::class)->group(function ()
 // RFID Scan Endpoint
 Route::post('/scan-rfid', [AttendanceController::class, 'scanRfid'])->name('attendance.scan');
 
+// Halaman Display Layar Absensi (Publik — tidak perlu login)
+Route::get('/display', [AttendanceController::class, 'displayPage'])->name('display');
+
 // Authenticated Routes
 Route::middleware('auth')->group(function () {
     // Dashboard Utama

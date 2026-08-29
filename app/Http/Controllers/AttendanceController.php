@@ -129,15 +129,37 @@ class AttendanceController extends Controller
         ]);
     }
 
+    private function logLcdMessage(bool $success, string $message, ?User $user = null, ?string $status = null): void
+    {
+        try {
+            $event = [
+                'id'        => (int)(microtime(true) * 1000),
+                'success'   => $success,
+                'name'      => $user ? $user->name : 'Kartu RFID',
+                'kelas'     => $user ? ($user->kelas ?? '-') : '-',
+                'time_in'   => Carbon::now()->format('H:i:s'),
+                'status'    => $status ?? ($success ? 'Berhasil' : 'Info'),
+                'message'   => $message,
+                'timestamp' => microtime(true),
+            ];
+
+            Storage::disk('local')->put('latest_lcd_event.json', json_encode($event));
+        } catch (\Throwable $e) {
+            Log::warning("Gagal menyimpan LCD event: " . $e->getMessage());
+        }
+    }
+
     public function scanRfid(Request $request): JsonResponse
     {
         try {
             $uid = trim($request->input('uid'));
 
             if (empty($uid)) {
+                $msg = 'UID RFID tidak boleh kosong.';
+                $this->logLcdMessage(false, $msg, null, 'Gagal');
                 return response()->json([
                     'success' => false,
-                    'message' => 'UID RFID tidak boleh kosong.',
+                    'message' => $msg,
                 ], 400);
             }
 
@@ -145,17 +167,21 @@ class AttendanceController extends Controller
             $user = User::where('uid', $uid)->first();
 
             if (!$user) {
+                $msg = 'Kartu RFID tidak dikenali atau belum terdaftar.';
+                $this->logLcdMessage(false, $msg, null, 'Ditolak');
                 return response()->json([
                     'success' => false,
-                    'message' => 'Kartu RFID tidak dikenali atau belum terdaftar.',
+                    'message' => $msg,
                 ], 404);
             }
 
             $rfidStatus = $user->rfid_status ?? 'active';
             if ($rfidStatus !== 'active') {
+                $msg = 'Kartu RFID Anda dinonaktifkan. Hubungi Admin untuk mengaktifkannya.';
+                $this->logLcdMessage(false, $msg, $user, 'Kartu Nonaktif');
                 return response()->json([
                     'success' => false,
-                    'message' => 'Kartu RFID Anda dinonaktifkan. Hubungi Admin untuk mengaktifkannya.',
+                    'message' => $msg,
                 ], 403);
             }
 
@@ -181,16 +207,20 @@ class AttendanceController extends Controller
             if ($attendanceTodayKey !== false) {
                 $attToday = $attendances[$attendanceTodayKey];
                 if (isset($attToday['time_out']) && $attToday['time_out'] !== null) {
+                    $msg = 'Halo '.$user->name.', Anda sudah melakukan absensi pulang hari ini.';
+                    $this->logLcdMessage(false, $msg, $user, 'Sudah Absen');
                     return response()->json([
                         'success' => false,
-                        'message' => 'Halo '.$user->name.', Anda sudah melakukan absensi pulang hari ini.',
+                        'message' => $msg,
                     ], 400);
                 }
 
                 if ($currentTimeCarbon->lt($jamPulangCarbon)) {
+                    $msg = 'Belum waktunya pulang. Jam pulang: '.$jamPulang;
+                    $this->logLcdMessage(false, $msg, $user, 'Belum Pulang');
                     return response()->json([
                         'success' => false,
-                        'message' => 'Belum waktunya pulang. Jam pulang: '.$jamPulang,
+                        'message' => $msg,
                     ], 400);
                 }
 
@@ -200,8 +230,15 @@ class AttendanceController extends Controller
                 try { JsonDatabase::saveAttendances($attendances); } catch (\Throwable $e) {}
 
                 Attendance::updateOrCreate(
-                    ['id' => $attToday['id']],
-                    ['time_out' => $currentTime]
+                    [
+                        'user_id' => $user->id,
+                        'date'    => $attToday['date'],
+                    ],
+                    [
+                        'time_in'  => $attToday['time_in'] ?? $currentTime,
+                        'time_out' => $currentTime,
+                        'status'   => $attToday['status'] ?? 'Hadir',
+                    ]
                 );
 
                 // Notifikasi WhatsApp non-blocking untuk Pulang
@@ -209,9 +246,12 @@ class AttendanceController extends Controller
                     $this->kirimNotifikasiWAEvent($user, $attToday['date'], $currentTime, 'Pulang', 'pulang');
                 }
 
+                $msg = 'Absen pulang berhasil dicatat!';
+                $this->logLcdMessage(true, $msg, $user, 'Pulang');
+
                 return response()->json([
                     'success' => true,
-                    'message' => 'Absen pulang berhasil dicatat!',
+                    'message' => $msg,
                     'data' => [
                         'nama' => $user->name,
                         'kelas' => $user->kelas ?? '-',
@@ -224,9 +264,11 @@ class AttendanceController extends Controller
 
             // PROSES ABSEN MASUK
             if ($currentTimeCarbon->lt($minimalDatangCarbon)) {
+                $msg = 'Belum waktunya absen. Absen dimulai jam '.$minimalDatang;
+                $this->logLcdMessage(false, $msg, $user, 'Belum Waktunya');
                 return response()->json([
                     'success' => false,
-                    'message' => 'Belum waktunya absen. Absen dimulai jam '.$minimalDatang,
+                    'message' => $msg,
                 ], 400);
             }
 
@@ -249,13 +291,14 @@ class AttendanceController extends Controller
             try { JsonDatabase::saveAttendances($attendances); } catch (\Throwable $e) {}
 
             Attendance::updateOrCreate(
-                ['id' => $newId],
                 [
                     'user_id' => $user->id,
-                    'date' => $today,
-                    'time_in' => $currentTime,
+                    'date'    => $today,
+                ],
+                [
+                    'time_in'  => $currentTime,
                     'time_out' => null,
-                    'status' => $status,
+                    'status'   => $status,
                 ]
             );
 
@@ -266,9 +309,12 @@ class AttendanceController extends Controller
                 $this->kirimNotifikasiWAEvent($user, $today, $currentTime, $status, 'masuk');
             }
 
+            $msg = $status === 'Terlambat' ? 'Absen masuk terdeteksi Terlambat!' : 'Absen masuk berhasil dicatat!';
+            $this->logLcdMessage(true, $msg, $user, $status);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Absen masuk berhasil dicatat!',
+                'message' => $msg,
                 'data' => [
                     'nama' => $user->name,
                     'kelas' => $user->kelas ?? '-',
@@ -280,9 +326,11 @@ class AttendanceController extends Controller
 
         } catch (\Throwable $e) {
             Log::error("Error pada scanRfid: " . $e->getMessage());
+            $msg = 'Terjadi kesalahan pada server: ' . $e->getMessage();
+            $this->logLcdMessage(false, $msg, null, 'Server Error');
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan pada server: ' . $e->getMessage(),
+                'message' => $msg,
             ], 500);
         }
     }
@@ -448,5 +496,99 @@ class AttendanceController extends Controller
         });
 
         return response()->json($result);
+    }
+
+    /**
+     * Halaman display layar depan — tidak butuh login
+     */
+    public function displayPage(): View
+    {
+        $today       = Carbon::today()->toDateString();
+        $attendances = $this->getMappedAttendances();
+        $todayAtts   = $attendances->filter(fn($a) => $a->date === $today);
+
+        $stats = [
+            'hadir'     => $todayAtts->filter(fn($a) => strtolower($a->status) === 'hadir')->count(),
+            'terlambat' => $todayAtts->filter(fn($a) => strtolower($a->status) === 'terlambat')->count(),
+            'pulang'    => $todayAtts->filter(fn($a) => !is_null($a->time_out))->count(),
+            'total'     => $todayAtts->count(),
+        ];
+
+        $latest = null;
+        if (Storage::disk('local')->exists('latest_lcd_event.json')) {
+            $lcdContent = Storage::disk('local')->get('latest_lcd_event.json');
+            $latest = json_decode($lcdContent, true);
+        }
+
+        if (!$latest) {
+            $latestRaw = $todayAtts->sortByDesc('id')->first();
+            if ($latestRaw) {
+                $latest = [
+                    'id'      => $latestRaw->id,
+                    'success' => true,
+                    'name'    => $latestRaw->user->name ?? '-',
+                    'kelas'   => $latestRaw->user->kelas ?? '-',
+                    'time_in' => $latestRaw->time_in,
+                    'status'  => $latestRaw->status,
+                    'message' => 'Absensi berhasil dicatat',
+                ];
+            }
+        }
+
+        $recentLog = $todayAtts->sortByDesc('id')->take(6)->values();
+
+        return view('display.index', compact('stats', 'latest', 'recentLog'));
+    }
+
+    /**
+     * API polling untuk display — mengembalikan data terbaru secara JSON
+     */
+    public function displayLatestApi(Request $request): JsonResponse
+    {
+        $today       = Carbon::today()->toDateString();
+        $attendances = $this->getMappedAttendances();
+        $todayAtts   = $attendances->filter(fn($a) => $a->date === $today);
+
+        $stats = [
+            'hadir'     => $todayAtts->filter(fn($a) => strtolower($a->status) === 'hadir')->count(),
+            'terlambat' => $todayAtts->filter(fn($a) => strtolower($a->status) === 'terlambat')->count(),
+            'pulang'    => $todayAtts->filter(fn($a) => !is_null($a->time_out))->count(),
+            'total'     => $todayAtts->count(),
+        ];
+
+        $latest = null;
+        if (Storage::disk('local')->exists('latest_lcd_event.json')) {
+            $lcdContent = Storage::disk('local')->get('latest_lcd_event.json');
+            $latest = json_decode($lcdContent, true);
+        }
+
+        if (!$latest) {
+            $latestRaw = $todayAtts->sortByDesc('id')->first();
+            if ($latestRaw) {
+                $latest = [
+                    'id'      => $latestRaw->id,
+                    'success' => true,
+                    'name'    => $latestRaw->user->name ?? '-',
+                    'kelas'   => $latestRaw->user->kelas ?? '-',
+                    'time_in' => $latestRaw->time_in,
+                    'status'  => $latestRaw->status,
+                    'message' => null,
+                ];
+            }
+        }
+
+        $recentLog = $todayAtts->sortByDesc('id')->take(6)->map(fn($a) => [
+            'id'      => $a->id,
+            'name'    => $a->user->name ?? '-',
+            'kelas'   => $a->user->kelas ?? '-',
+            'time_in' => $a->time_in,
+            'status'  => $a->status,
+        ])->values()->toArray();
+
+        return response()->json([
+            'stats'     => $stats,
+            'latest'    => $latest,
+            'recentLog' => $recentLog,
+        ]);
     }
 }
