@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('settings')->name('settings.')->controller(SettingController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/update', 'update')->name('update');
+        Route::get('/check-late', 'triggerCheckLate')->name('check-late');
         Route::get('/update', function () {
             return redirect()->route('settings.index');
         });

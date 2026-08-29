@@ -14,10 +14,13 @@ if (! function_exists('get_setting')) {
             'jam_pulang' => '15:00',
 
             'wa_gateway_url' => 'http://localhost:3000',
-            'wa_api_key' => 'secret_token_123',
+            'wa_api_key' => 'base64:Sp2BUoC+1/isTIbAHbGqVCmluBXcmT9M1HMDxPsnBwo=',
             'delay_wa' => '3',
             'auto_send_wa' => '1',
-            'template_wa_hadir' => 'Halo {nama}, terima kasih telah melakukan absensi MASUK pada jam {waktu}. Selamat belajar!',
+            'auto_send_wa_late' => '1',
+            'template_wa_hadir' => 'Halo {nama} ({kelas}), terima kasih telah melakukan absensi MASUK pada jam {waktu} ({tanggal}). Selamat belajar!',
+            'template_wa_pulang' => 'Halo {nama} ({kelas}), absensi PULANG Anda pada jam {waktu} ({tanggal}) berhasil dicatat. Hati-hati di perjalanan!',
+            'template_wa_terlambat' => 'PEMBERITAHUAN: Siswa atas nama {nama} (Kelas {kelas}) tercatat BELUM HADIR / TERLAMBAT di sekolah hingga jam {waktu} ({tanggal}). Mohon segera konfirmasi kepada pihak sekolah jika berhalangan hadir.',
 
             'app_name' => 'SMA Negeri 1 Digital',
             'theme_mode' => 'light',
@@ -49,7 +52,8 @@ if (! function_exists('all_settings')) {
     {
         $keys = [
             'minimal_datang', 'jam_masuk', 'toleransi_terlambat', 'jam_pulang',
-            'wa_gateway_url', 'wa_api_key', 'delay_wa', 'auto_send_wa', 'template_wa_hadir',
+            'wa_gateway_url', 'wa_api_key', 'delay_wa', 'auto_send_wa', 'auto_send_wa_late',
+            'template_wa_hadir', 'template_wa_pulang', 'template_wa_terlambat',
             'app_name', 'theme_mode', 'language', 'wifi_ssid', 'wifi_password',
         ];
 

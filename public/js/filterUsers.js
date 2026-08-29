@@ -1,4 +1,3 @@
-
 function updateRfidStatus(userId, newStatus, selectEl) {
     if (newStatus === 'active') {
         selectEl.className = "px-2.5 py-1 text-xs font-semibold rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-green-50 text-green-800 cursor-pointer";
@@ -32,8 +31,8 @@ const classesList = [];
 
 function initClassesList() {
     const majors = [
-        { name: 'rpl', count: 10 },
-        { name: 'dkv', count: 3 }
+        { name: 'RPL', count: 10 },
+        { name: 'DKV', count: 3 }
     ];
     const grades = ['X', 'XI', 'XII'];
 

@@ -1,9 +1,0 @@
-[phases.setup]
-nixPkgs = ['...', 'php83Extensions.gd']
-
-[phases.build]
-cmds = [
-  'composer install --ignore-platform-req=ext-gd --no-dev --optimize-autoloader',
-  'npm install',
-  'npm run build'
-]

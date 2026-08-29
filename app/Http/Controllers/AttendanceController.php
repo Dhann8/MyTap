@@ -13,10 +13,26 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class AttendanceController extends Controller
 {
+    /**
+     * Helper aman untuk membaca setting tanpa membuat skrip terhenti (hanging)
+     */
+    private function safeGetSetting(string $key, string $default): string
+    {
+        try {
+            if (function_exists('get_setting')) {
+                return (string) (get_setting($key, $default) ?? $default);
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Gagal membaca setting '{$key}': " . $e->getMessage());
+        }
+        return $default;
+    }
+
     private function getMappedAttendances(): Collection
     {
         $dbUsers = User::all()->keyBy('id');
@@ -115,201 +131,213 @@ class AttendanceController extends Controller
 
     public function scanRfid(Request $request): JsonResponse
     {
-        $user = User::where('uid', $request->uid)->first();
+        try {
+            $uid = trim($request->input('uid'));
 
-        if (! $user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kartu RFID tidak dikenali atau belum terdaftar.',
-            ], 404);
-        }
-
-        $rfidStatus = $user->rfid_status ?? 'active';
-        if ($rfidStatus !== 'active') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kartu RFID Anda dinonaktifkan. Hubungi Admin untuk mengaktifkannya.',
-            ], 403);
-        }
-
-        $today = Carbon::today()->toDateString();
-        $currentTime = Carbon::now()->toTimeString();
-        $currentTimeCarbon = Carbon::now();
-
-        $minimalDatang = get_setting('minimal_datang', '06:00');
-        $jamMasuk = get_setting('jam_masuk', '07:00');
-        $toleransi = (int) get_setting('toleransi_terlambat', '15');
-        $jamPulang = get_setting('jam_pulang', '15:00');
-
-        $minimalDatangCarbon = Carbon::parse($minimalDatang);
-        $jamMasukCarbon = Carbon::parse($jamMasuk);
-        $batasTerlambatCarbon = $jamMasukCarbon->copy()->addMinutes($toleransi);
-        $jamPulangCarbon = Carbon::parse($jamPulang);
-
-        $attendances = JsonDatabase::getAttendances();
-        $attendanceTodayKey = $attendances->search(function ($att) use ($user, $today) {
-            return $att['user_id'] == $user->id && $att['date'] === $today;
-        });
-
-        if ($attendanceTodayKey !== false) {
-            $attToday = $attendances[$attendanceTodayKey];
-            if (isset($attToday['time_out']) && $attToday['time_out'] !== null) {
+            if (empty($uid)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Halo '.$user->name.', Anda sudah melakukan absensi pulang hari ini.',
+                    'message' => 'UID RFID tidak boleh kosong.',
                 ], 400);
             }
 
-            if ($currentTimeCarbon->lt($jamPulangCarbon)) {
+            // Cari user berdasarkan UID
+            $user = User::where('uid', $uid)->first();
+
+            if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Belum waktunya pulang. Jam pulang: '.$jamPulang,
+                    'message' => 'Kartu RFID tidak dikenali atau belum terdaftar.',
+                ], 404);
+            }
+
+            $rfidStatus = $user->rfid_status ?? 'active';
+            if ($rfidStatus !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kartu RFID Anda dinonaktifkan. Hubungi Admin untuk mengaktifkannya.',
+                ], 403);
+            }
+
+            $today = Carbon::today()->toDateString();
+            $currentTime = Carbon::now()->toTimeString();
+            $currentTimeCarbon = Carbon::now();
+
+            // Membaca setting dengan fallback aman
+            $minimalDatang = $this->safeGetSetting('minimal_datang', '06:00');
+            $jamMasuk       = $this->safeGetSetting('jam_masuk', '07:00');
+            $jamPulang      = $this->safeGetSetting('jam_pulang', '15:00');
+
+            $minimalDatangCarbon = Carbon::parse($minimalDatang);
+            $jamMasukCarbon       = Carbon::parse($jamMasuk);
+            $jamPulangCarbon      = Carbon::parse($jamPulang);
+
+            $attendances = JsonDatabase::getAttendances() ?? collect([]);
+            $attendanceTodayKey = $attendances->search(function ($att) use ($user, $today) {
+                return isset($att['user_id'], $att['date']) && $att['user_id'] == $user->id && $att['date'] === $today;
+            });
+
+            // PROSES ABSEN PULANG
+            if ($attendanceTodayKey !== false) {
+                $attToday = $attendances[$attendanceTodayKey];
+                if (isset($attToday['time_out']) && $attToday['time_out'] !== null) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Halo '.$user->name.', Anda sudah melakukan absensi pulang hari ini.',
+                    ], 400);
+                }
+
+                if ($currentTimeCarbon->lt($jamPulangCarbon)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Belum waktunya pulang. Jam pulang: '.$jamPulang,
+                    ], 400);
+                }
+
+                $attToday['time_out'] = $currentTime;
+                $attendances[$attendanceTodayKey] = $attToday;
+                
+                try { JsonDatabase::saveAttendances($attendances); } catch (\Throwable $e) {}
+
+                Attendance::updateOrCreate(
+                    ['id' => $attToday['id']],
+                    ['time_out' => $currentTime]
+                );
+
+                // Notifikasi WhatsApp non-blocking untuk Pulang
+                if ($this->safeGetSetting('auto_send_wa', '1') === '1') {
+                    $this->kirimNotifikasiWAEvent($user, $attToday['date'], $currentTime, 'Pulang', 'pulang');
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Absen pulang berhasil dicatat!',
+                    'data' => [
+                        'nama' => $user->name,
+                        'kelas' => $user->kelas ?? '-',
+                        'tanggal' => $attToday['date'],
+                        'jam' => $currentTime,
+                        'status' => 'Pulang',
+                    ],
+                ], 200);
+            }
+
+            // PROSES ABSEN MASUK
+            if ($currentTimeCarbon->lt($minimalDatangCarbon)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Belum waktunya absen. Absen dimulai jam '.$minimalDatang,
                 ], 400);
             }
 
-            // Process Tap Out
-            $attToday['time_out'] = $currentTime;
-            $attendances[$attendanceTodayKey] = $attToday;
-            JsonDatabase::saveAttendances($attendances);
+            $status = $currentTimeCarbon->gt($jamMasukCarbon) ? 'Terlambat' : 'Hadir';
 
-            Attendance::updateOrCreate(
-                ['id' => $attToday['id']],
-                ['time_out' => $currentTime]
-            );
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Absen pulang berhasil dicatat!',
-                'data' => [
-                    'nama' => $user->name,
-                    'kelas' => $user->kelas,
-                    'tanggal' => $attToday['date'],
-                    'jam' => $currentTime,
-                    'status' => 'Pulang',
-                ],
-            ], 200);
-        }
-
-        if ($currentTimeCarbon->lt($minimalDatangCarbon)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Belum waktunya absen. Absen dimulai jam '.$minimalDatang,
-            ], 400);
-        }
-
-        $status = 'Hadir';
-        if ($currentTimeCarbon->gt($jamMasukCarbon)) {
-            $status = 'Terlambat';
-        }
-
-        $newId = $attendances->max('id') ? $attendances->max('id') + 1 : 1;
-        $newAttendance = [
-            'id' => $newId,
-            'user_id' => $user->id,
-            'date' => $today,
-            'time_in' => $currentTime,
-            'time_out' => null,
-            'status' => $status,
-        ];
-
-        $attendances->push($newAttendance);
-        JsonDatabase::saveAttendances($attendances);
-
-        Attendance::updateOrCreate(
-            ['id' => $newId],
-            [
+            $maxId = $attendances->max('id') ? $attendances->max('id') : 0;
+            $newId = $maxId + 1;
+            
+            $newAttendance = [
+                'id' => $newId,
                 'user_id' => $user->id,
                 'date' => $today,
                 'time_in' => $currentTime,
                 'time_out' => null,
                 'status' => $status,
-            ]
-        );
+            ];
 
-        $this->saveToJson($user->name, $request->uid, $today, $currentTime);
+            $attendances->push($newAttendance);
+            
+            try { JsonDatabase::saveAttendances($attendances); } catch (\Throwable $e) {}
 
-        if (! empty($user->no_hp) && get_setting('auto_send_wa') == '1') {
-            $this->kirimNotifikasiWA($user->no_hp, $user->name, $user->kelas, $currentTime);
+            Attendance::updateOrCreate(
+                ['id' => $newId],
+                [
+                    'user_id' => $user->id,
+                    'date' => $today,
+                    'time_in' => $currentTime,
+                    'time_out' => null,
+                    'status' => $status,
+                ]
+            );
+
+            $this->saveToJson($user->name, $uid, $today, $currentTime);
+
+            // Notifikasi WhatsApp non-blocking untuk Masuk
+            if ($this->safeGetSetting('auto_send_wa', '1') === '1') {
+                $this->kirimNotifikasiWAEvent($user, $today, $currentTime, $status, 'masuk');
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Absen masuk berhasil dicatat!',
+                'data' => [
+                    'nama' => $user->name,
+                    'kelas' => $user->kelas ?? '-',
+                    'tanggal' => $newAttendance['date'],
+                    'jam' => $newAttendance['time_in'],
+                    'status' => $newAttendance['status'],
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error("Error pada scanRfid: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan pada server: ' . $e->getMessage(),
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Absen masuk berhasil dicatat!',
-            'data' => [
-                'nama' => $user->name,
-                'kelas' => $user->kelas,
-                'tanggal' => $newAttendance['date'],
-                'jam' => $newAttendance['time_in'],
-                'status' => $newAttendance['status'],
-            ],
-        ], 200);
     }
 
     private function saveToJson(string $name, string $uid, string $date, string $time): void
     {
-        $fileName = 'absensi_log.json';
-        $newData = [
-            'nama' => $name,
-            'uid' => $uid,
-            'tanggal' => $date,
-            'jam_masuk' => $time,
-        ];
+        try {
+            $fileName = 'absensi_log.json';
+            $newData = [
+                'nama' => $name,
+                'uid' => $uid,
+                'tanggal' => $date,
+                'jam_masuk' => $time,
+            ];
 
-        if (Storage::disk('local')->exists($fileName)) {
-            $oldContent = Storage::disk('local')->get($fileName);
-            $arrayData = json_decode($oldContent, true) ?? [];
-        } else {
-            $arrayData = [];
+            if (Storage::disk('local')->exists($fileName)) {
+                $oldContent = Storage::disk('local')->get($fileName);
+                $arrayData = json_decode($oldContent, true) ?? [];
+            } else {
+                $arrayData = [];
+            }
+
+            $arrayData[] = $newData;
+            Storage::disk('local')->put($fileName, json_encode($arrayData, JSON_PRETTY_PRINT));
+        } catch (\Throwable $e) {
+            Log::warning("Gagal menyimpan file absensi_log.json: " . $e->getMessage());
         }
-
-        $arrayData[] = $newData;
-        Storage::disk('local')->put($fileName, json_encode($arrayData, JSON_PRETTY_PRINT));
     }
 
-    private function kirimNotifikasiWA(string $nomor, string $nama, string $kelas, string $jam): void
+    private function kirimNotifikasiWAEvent(User $user, string $tanggal, string $jam, string $status, string $type = 'masuk'): void
     {
-        $urlApi = rtrim(get_setting('wa_gateway_url'), '/').'/send-message';
+        $baseUrl = rtrim($this->safeGetSetting('wa_gateway_url', 'http://localhost:3000'), '/');
+        $apiKey = $this->safeGetSetting('wa_api_key', 'base64:Sp2BUoC+1/isTIbAHbGqVCmluBXcmT9M1HMDxPsnBwo=');
 
-        $template = get_setting('template_wa_hadir');
-        $pesan = str_replace(['{nama}', '{kelas}', '{waktu}'], [$nama, $kelas, $jam], $template);
-
-        $maxRetry = 3;
-        $retryDelay = 2;
-
-        for ($attempt = 1; $attempt <= $maxRetry; $attempt++) {
-            try {
-                $response = Http::timeout(10)->post($urlApi, [
-                    'number' => $nomor,
-                    'message' => $pesan,
+        try {
+            // Kirim JSON event ke Node WA server
+            Http::timeout(2)
+                ->withHeaders([
+                    'x-api-key' => $apiKey,
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($baseUrl . '/attendance-event', [
+                    'user_id' => $user->id,
+                    'uid' => $user->uid,
+                    'name' => $user->name,
+                    'kelas' => $user->kelas ?? '-',
+                    'no_hp' => $user->no_hp,
+                    'date' => $tanggal,
+                    'time' => $jam,
+                    'status' => $status,
+                    'type' => $type,
                 ]);
-
-                if ($response->successful()) {
-                    logger("WhatsApp sukses dikirim untuk: {$nama}".($attempt > 1 ? " (percobaan ke-{$attempt})" : ''));
-
-                    return;
-                }
-
-                if ($response->status() === 503) {
-                    logger("WA client belum siap (503), retry {$attempt}/{$maxRetry} untuk: {$nama}");
-                    if ($attempt < $maxRetry) {
-                        sleep($retryDelay);
-                    }
-
-                    continue;
-                }
-
-                logger('GAGAL kirim WA. Status: '.$response->status().' | Body: '.$response->body());
-
-                return;
-
-            } catch (\Exception $e) {
-                logger('Koneksi ke Node.js GAGAL. Error: '.$e->getMessage());
-
-                return;
-            }
+        } catch (\Throwable $e) {
+            Log::warning("Koneksi ke WA Gateway GAGAL/TIMEOUT untuk {$user->name}: " . $e->getMessage());
         }
-
-        logger("WA gagal terkirim setelah {$maxRetry}x percobaan untuk: {$nama} (client belum siap)");
     }
 
     public function autocomplete(Request $request): JsonResponse
@@ -382,7 +410,7 @@ class AttendanceController extends Controller
         });
         JsonDatabase::saveAttendances($attendances);
 
-        return redirect()->route('attendances.index')->with('success', 'Data absensi berhasil dihapus.');
+        return redirect()->route('attendance.index')->with('success', 'Data absensi berhasil dihapus.');
     }
 
     public function getAllData(Request $request): JsonResponse

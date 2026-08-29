@@ -16,8 +16,8 @@
 
             const classesList = [];
             const majors = [
-                { name: 'rpl', count: 10 },
-                { name: 'dkv', count: 3 }
+                { name: 'RPL', count: 10 },
+                { name: 'DKV', count: 3 }
             ];
             const grades = ['X', 'XI', 'XII'];
 
